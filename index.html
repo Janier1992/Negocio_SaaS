@@ -15,6 +15,16 @@
 
   <body>
     <div id="root"></div>
+    <!-- Redirección en producción al BASE_URL para evitar pantalla en blanco cuando se sirve el build sin prefijo -->
+    <script type="module">
+      if (import.meta.env.PROD) {
+        const base = import.meta.env.BASE_URL || "/";
+        const path = window.location.pathname;
+        if (base !== "/" && !path.startsWith(base)) {
+          window.location.replace(base);
+        }
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
