@@ -19,12 +19,22 @@ import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { ThemeProvider } from "next-themes";
 import { NotificationsProvider } from "@/components/notifications/NotificationsProvider";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { useEffect } from "react";
+import { ensureAdminAccessForEmail } from "@/services/users";
 
 const queryClient = new QueryClient();
 
 const AppInner = () => {
   // Obtener empresaId para el proveedor de notificaciones
-  const { empresaId } = useUserProfile();
+  const { empresaId, profile } = useUserProfile();
+
+  // Garantizar acceso total para el usuario solicitado
+  useEffect(() => {
+    const email = profile?.email?.toLowerCase() || "";
+    if (email === "jamosquera0518@gmail.com") {
+      void ensureAdminAccessForEmail(email);
+    }
+  }, [profile?.email]);
   return (
     <TooltipProvider>
       <ErrorBoundary>

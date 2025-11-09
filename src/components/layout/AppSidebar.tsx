@@ -24,6 +24,8 @@ import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/newClient";
 import { toast } from "sonner";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 const menuItems = [
   {
@@ -73,8 +75,11 @@ const menuItems = [
 
 export function AppSidebar() {
   const { state, isMobile, setOpen, setOpenMobile } = useSidebar();
+  const { permissions } = usePermissions();
+  const { profile } = useUserProfile();
   const location = useLocation();
   const isCollapsed = state === "collapsed";
+  const isAdmin = (profile?.rol || "").toLowerCase() === "admin";
 
   const getNavClasses = (isActive: boolean) =>
     isActive
@@ -122,7 +127,24 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => {
+              {menuItems
+                .filter((item) => {
+                  const required: Record<string, string | null> = {
+                    "/inventario": "inventario_read",
+                    "/ventas": "ventas_read",
+                    "/proveedores": "proveedores_read",
+                    "/clientes": "clientes_read",
+                    "/finanzas": "finanzas_view",
+                    "/configuracion": "config_view",
+                    "/": null,
+                    "/alertas": null,
+                  };
+                  const key = required[item.url] ?? null;
+                  // Admin ve todos los módulos; otros roles según permisos listados
+                  if (isAdmin) return true;
+                  return key ? permissions.includes(key) : true;
+                })
+                .map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>

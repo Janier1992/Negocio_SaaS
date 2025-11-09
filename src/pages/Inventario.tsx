@@ -24,6 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { RequirePermission } from "@/components/auth/RequirePermission";
 
 const Inventario = () => {
   const { empresaId, loading: profileLoading, profile } = useUserProfile();
@@ -448,7 +449,8 @@ const columns: Column<any>[] = [
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <RequirePermission permission="inventario_read">
+      <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-3xl font-bold text-foreground">Inventario</h2>
@@ -479,6 +481,8 @@ const columns: Column<any>[] = [
           </button>
         </div>
       </div>
+
+
 
       <Card>
         <CardHeader>
@@ -523,7 +527,8 @@ const columns: Column<any>[] = [
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </div>
+    </RequirePermission>
   );
 };
 

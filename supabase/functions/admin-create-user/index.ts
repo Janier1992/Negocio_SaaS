@@ -7,14 +7,32 @@ type CreateUserPayload = {
   email: string;
   password: string;
   full_name?: string | null;
-  roles?: ("admin" | "empleado" | "viewer")[];
+  // Soporta roles extendidos definidos en public.app_role
+  roles?: (
+    | "admin"
+    | "empleado"
+    | "viewer"
+    | "administrativo"
+    | "ventas"
+    | "inventario"
+    | "finanzas"
+    | "auxiliar"
+  )[];
   username?: string | null;
   business_name?: string | null; // opcional: crear empresa en bootstrap
 };
 
+// Permite usar tanto SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY como PROJECT_URL/SERVICE_ROLE_KEY
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || Deno.env.get("PROJECT_URL");
+const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY");
+
+if (!SUPABASE_URL || !SERVICE_KEY) {
+  console.error("Faltan secretos: SUPABASE_URL/PROJECT_URL y SUPABASE_SERVICE_ROLE_KEY/SERVICE_ROLE_KEY");
+}
+
 const supabaseAdmin = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  SUPABASE_URL!,
+  SERVICE_KEY!,
 );
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -187,3 +205,5 @@ serve(async (req) => {
     return json({ error: "internal_error", message: String((err as any)?.message || "") }, 500);
   }
 });
+// Declarar runtime para despliegue en Edge
+export const config = { runtime: "edge" };

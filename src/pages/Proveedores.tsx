@@ -32,6 +32,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { RequirePermission } from "@/components/auth/RequirePermission";
 
 const Proveedores = () => {
   const { empresaId, loading: profileLoading, profile } = useUserProfile();
@@ -239,7 +240,8 @@ const Proveedores = () => {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <RequirePermission permission="proveedores_read">
+      <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold text-foreground">Proveedores</h2>
@@ -390,7 +392,8 @@ const Proveedores = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </div>
+    </RequirePermission>
   );
 };
 

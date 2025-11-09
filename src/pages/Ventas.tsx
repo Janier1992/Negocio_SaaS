@@ -37,6 +37,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { validateEmail } from "@/services/users";
+import { RequirePermission } from "@/components/auth/RequirePermission";
 
 const Ventas = () => {
   const { empresaId, loading: profileLoading } = useUserProfile();
@@ -355,7 +356,8 @@ const Ventas = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <RequirePermission permission="ventas_read">
+      <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-3xl font-bold text-foreground">Ventas</h2>
@@ -617,6 +619,7 @@ const Ventas = () => {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </RequirePermission>
   );
 };
 

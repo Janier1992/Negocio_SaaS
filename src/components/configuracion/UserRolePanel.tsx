@@ -16,7 +16,7 @@ interface ProfileRow {
   empresa_id: string | null;
 }
 
-const ROLES = ["admin", "empleado", "viewer"] as const;
+const ROLES = ["admin", "administrativo", "ventas", "inventario", "finanzas", "auxiliar", "empleado", "viewer"] as const;
 
 type AppRole = (typeof ROLES)[number];
 

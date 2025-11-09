@@ -3,75 +3,138 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { supabase } from "@/integrations/supabase/newClient";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { toast } from "sonner";
-import { startOfMonth, startOfDay, subDays, format } from "date-fns";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { startOfMonth, startOfDay, subDays, subMonths, format } from "date-fns";
+import jsPDF from "jspdf";
+// Eliminados: Badge, Table, Button (solo usados por CxP)
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { fetchEgresos, addEgreso, logAuditEgreso, type EgresoRow } from "@/services/finanzas/egresos";
+import { RequirePermission } from "@/components/auth/RequirePermission";
 
 export default function Finanzas() {
   const { empresaId, loading: profileLoading } = useUserProfile();
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [period, setPeriod] = useState<"hoy" | "semana" | "mes">("hoy");
-  const [resumen, setResumen] = useState<{ ingresos_mes: number; egresos_mes: number; balance_mes: number; cuentas_por_pagar: number } | null>(null);
-  const [netTrend, setNetTrend] = useState<Array<{ label: string; total: number }>>([]);
-  // Hooks de CxP colocados antes de los returns para respetar las Rules of Hooks
-  const [cxpLoading, setCxpLoading] = useState(false);
-  const [cxp, setCxp] = useState<Array<{ id: string; proveedor_id?: string | null; compra_id?: string | null; monto: number; fecha_emision: string; fecha_vencimiento: string; estado: 'pendiente'|'pagado'|'vencida' }>>([]);
-  const [cxpEstado, setCxpEstado] = useState<'todas'|'pendiente'|'vencida'|'pagado'>('pendiente');
+  const [resumen, setResumen] = useState<{ ingresos_mes: number; egresos_mes: number; balance_mes: number; cogs: number } | null>(null);
+  const [prevResumen, setPrevResumen] = useState<{ ingresos_mes: number; egresos_mes: number; balance_mes: number; cogs: number } | null>(null);
+  // Eliminado: netTrend para Flujo Neto del Periodo
+  // const [netTrend, setNetTrend] = useState<Array<{ label: string; total: number }>>([]);
+  // Eliminados: estados y hooks de CxP
+  // Eliminado: efecto de carga y suscripción de CxP
+
+  // Formulario de egresos
+  const [monto, setMonto] = useState<string>("");
+  const [fecha, setFecha] = useState<string>("");
+  const [categoria, setCategoria] = useState<string>("");
+  const [descripcion, setDescripcion] = useState<string>("");
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  // Métricas de egresos
+  const [egresosRows, setEgresosRows] = useState<EgresoRow[]>([]);
+  const [egresosTrend, setEgresosTrend] = useState<Array<{ label: string; total: number }>>([]);
+  const [egresosByCategoria, setEgresosByCategoria] = useState<Array<{ categoria: string; total: number }>>([]);
+  const [filtroDesde, setFiltroDesde] = useState<string>("");
+  const [filtroHasta, setFiltroHasta] = useState<string>("");
+  const [filtroCat, setFiltroCat] = useState<string>("");
+  // Persistencia de filtros para consistencia tras recargas
   useEffect(() => {
-    if (!empresaId) return;
-    const fetchCxp = async () => {
-      setCxpLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('cuentas_por_pagar')
-          .select('id, proveedor_id, compra_id, monto, fecha_emision, fecha_vencimiento, estado')
-          .eq('empresa_id', empresaId)
-          .order('fecha_vencimiento', { ascending: true });
-        if (error) {
-          const code = (error as any)?.code || '';
-          if (code === 'PGRST205') {
-            setCxp([]);
-          } else {
-            throw error;
-          }
-        } else {
-          setCxp((data || []) as any);
+    try {
+      const saved = localStorage.getItem('finanzas_egresos_filters');
+      if (saved) {
+        const obj = JSON.parse(saved);
+        if (obj && typeof obj === 'object') {
+          if (typeof obj.filtroDesde === 'string') setFiltroDesde(obj.filtroDesde);
+          if (typeof obj.filtroHasta === 'string') setFiltroHasta(obj.filtroHasta);
+          if (typeof obj.filtroCat === 'string') setFiltroCat(obj.filtroCat);
         }
-      } catch (err) {
-        console.error(err);
-        toast.error('No se pudieron cargar CxP');
-      } finally {
-        setCxpLoading(false);
       }
-    };
-    fetchCxp();
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem('finanzas_egresos_filters', JSON.stringify({ filtroDesde, filtroHasta, filtroCat }));
+    } catch {}
+  }, [filtroDesde, filtroHasta, filtroCat]);
+  const filteredEgresos = useMemo(() => {
+    return egresosRows.filter((r) => {
+      const d = new Date(r.fecha);
+      if (filtroDesde) {
+        const fd = new Date(filtroDesde);
+        if (d < fd) return false;
+      }
+      if (filtroHasta) {
+        const fh = new Date(filtroHasta);
+        fh.setHours(23,59,59,999);
+        if (d > fh) return false;
+      }
+      if (filtroCat && filtroCat.trim()) {
+        const cat = (r.categoria || "").toLowerCase();
+        const q = filtroCat.trim().toLowerCase();
+        if (!cat.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [egresosRows, filtroDesde, filtroHasta, filtroCat]);
 
-    // Suscripción realtime a CxP para refrescar tabla automáticamente
-    const channel = supabase
-      .channel('finanzas-cxp')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'cuentas_por_pagar', filter: `empresa_id=eq.${empresaId}` }, () => fetchCxp())
-      .subscribe();
-
-    return () => {
-      try { supabase.removeChannel(channel); } catch {}
-    };
-  }, [empresaId]);
+  // Estado del formulario como panel deslizable (persistente en sesión)
+  const [formOpen, setFormOpen] = useState(false);
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('finanzas_form_open');
+      if (saved) setFormOpen(saved === '1');
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('finanzas_form_open', formOpen ? '1' : '0');
+    } catch {}
+  }, [formOpen]);
 
   useEffect(() => {
-    const getDesde = () => {
-      if (period === 'hoy') return startOfDay(new Date()).toISOString();
-      if (period === 'semana') return subDays(startOfDay(new Date()), 7).toISOString();
-      return startOfMonth(new Date()).toISOString();
+    const getRange = () => {
+      const now = new Date();
+      if (period === 'hoy') {
+        const desde = startOfDay(now);
+        const hasta = new Date();
+        return { desde: desde.toISOString(), hasta: hasta.toISOString() };
+      }
+      if (period === 'semana') {
+        const hasta = startOfDay(now);
+        const desde = subDays(hasta, 7);
+        return { desde: desde.toISOString(), hasta: new Date().toISOString() };
+      }
+      const desde = startOfMonth(now);
+      const hasta = new Date();
+      return { desde: desde.toISOString(), hasta: hasta.toISOString() };
+    };
+    const getPrevRange = () => {
+      const now = new Date();
+      if (period === 'hoy') {
+        const hasta = startOfDay(now);
+        const desde = subDays(hasta, 1);
+        return { desde: desde.toISOString(), hasta: hasta.toISOString() };
+      }
+      if (period === 'semana') {
+        const hasta = subDays(startOfDay(now), 7);
+        const desde = subDays(hasta, 7);
+        return { desde: desde.toISOString(), hasta: hasta.toISOString() };
+      }
+      const hasta = startOfMonth(now);
+      const desde = startOfMonth(subMonths(now, 1));
+      return { desde: desde.toISOString(), hasta: hasta.toISOString() };
     };
 
     const fetchResumen = async (background: boolean) => {
       if (!empresaId) return;
       if (background) setUpdating(true); else setLoading(true);
       try {
-        const desde = getDesde();
+        const { desde, hasta } = getRange();
+        const prev = getPrevRange();
 
         // INGRESOS: ventas del periodo
         const ventasRes = await supabase
@@ -86,8 +149,22 @@ export default function Finanzas() {
         } else {
           ingresos = (ventasRes.data || []).reduce((sum: number, v: any) => sum + Number(v.total || 0), 0);
         }
+        // Ventas periodo previo
+        const ventasPrevRes = await supabase
+          .from('ventas')
+          .select('total, created_at')
+          .eq('empresa_id', empresaId)
+          .gte('created_at', prev.desde)
+          .lt('created_at', prev.hasta);
+        let prevIngresos = 0;
+        if (ventasPrevRes.error) {
+          const codePrev = (ventasPrevRes.error as any)?.code || '';
+          if (codePrev !== 'PGRST205') throw ventasPrevRes.error;
+        } else {
+          prevIngresos = (ventasPrevRes.data || []).reduce((sum: number, v: any) => sum + Number(v.total || 0), 0);
+        }
 
-        // EGRESOS: compras recibidas en el periodo
+        // EGRESOS/COGS: compras recibidas en el periodo
         const comprasRecRes = await supabase
           .from('compras')
           .select('id, estado, total, created_at')
@@ -105,26 +182,51 @@ export default function Finanzas() {
         } else {
           comprasRecRows = comprasRecRes.data || [];
         }
-
-        // Egresos: usar el campo total de la compra (recibida)
-        const egresos = comprasRecRows.reduce((sum: number, c: any) => sum + Number(c.total || 0), 0);
-
-        // CxP monto total actual (independiente del periodo)
-        const cxpMontoRes = await supabase
-          .from('cuentas_por_pagar')
-          .select('monto, estado')
+        // COGS aproximado
+        const cogs = comprasRecRows.reduce((sum: number, c: any) => sum + Number(c.total || 0), 0);
+        // Compras periodo previo (COGS previo)
+        const comprasPrevRes = await supabase
+          .from('compras')
+          .select('id, estado, total, created_at')
           .eq('empresa_id', empresaId)
-          .neq('estado', 'pagado');
-        let cuentasPorPagar = 0;
-        if (!cxpMontoRes.error) {
-          cuentasPorPagar = (cxpMontoRes.data || []).reduce((s: number, r: any) => s + Number(r.monto || 0), 0);
+          .gte('created_at', prev.desde)
+          .lt('created_at', prev.hasta)
+          .eq('estado', 'recibida');
+        let comprasPrevRows: any[] = [];
+        if (comprasPrevRes.error) {
+          const codePrevC = (comprasPrevRes.error as any)?.code || '';
+          if (codePrevC === 'PGRST205') {
+            comprasPrevRows = [];
+          } else {
+            throw comprasPrevRes.error;
+          }
+        } else {
+          comprasPrevRows = comprasPrevRes.data || [];
         }
+        const prevCogs = comprasPrevRows.reduce((sum: number, c: any) => sum + Number(c.total || 0), 0);
+
+        // Egresos operacionales manuales
+        const egresosManual = await fetchEgresos({ empresaId, desde, hasta });
+        setEgresosRows(egresosManual);
+        const egresosManualSum = egresosManual.reduce((s, r) => s + Number(r.monto || 0), 0);
+        // Egresos manuales previos
+        const egresosManualPrev = await fetchEgresos({ empresaId, desde: prev.desde, hasta: prev.hasta });
+        const egresosManualPrevSum = egresosManualPrev.reduce((s, r) => s + Number(r.monto || 0), 0);
+
+        // Egresos totales del periodo
+        const egresos = cogs + egresosManualSum;
 
         setResumen({
           ingresos_mes: ingresos,
           egresos_mes: egresos,
           balance_mes: ingresos - egresos,
-          cuentas_por_pagar: cuentasPorPagar,
+          cogs,
+        });
+        setPrevResumen({
+          ingresos_mes: prevIngresos,
+          egresos_mes: prevCogs + egresosManualPrevSum,
+          balance_mes: prevIngresos - (prevCogs + egresosManualPrevSum),
+          cogs: prevCogs,
         });
 
         // Tendencia neta por día/horas
@@ -141,8 +243,25 @@ export default function Finanzas() {
           cur.egresos += Number(c.total || 0);
           dailyMap.set(label, cur);
         }
-        const trend = Array.from(dailyMap.entries()).map(([label, v]) => ({ label, total: v.ingresos - v.egresos }));
-        setNetTrend(trend);
+        // Agregar egresos manuales a la tendencia
+        for (const e of egresosManual) {
+          const label = format(new Date(e.fecha), period === 'hoy' ? 'HH:mm' : 'dd MMM');
+          const cur = dailyMap.get(label) || { ingresos: 0, egresos: 0 };
+          cur.egresos += Number(e.monto || 0);
+          dailyMap.set(label, cur);
+        }
+        // Construir tendencia y categorías de egresos
+        const egTrend = Array.from(dailyMap.entries()).map(([label, v]) => ({ label, total: v.egresos }));
+        setEgresosTrend(egTrend);
+        const catMap = new Map<string, number>();
+        for (const e of egresosManual) {
+          const key = (e.categoria || 'Otros').trim();
+          catMap.set(key, (catMap.get(key) || 0) + Number(e.monto || 0));
+        }
+        const catArr = Array.from(catMap.entries()).map(([categoria, total]) => ({ categoria, total }));
+        catArr.sort((a, b) => b.total - a.total);
+        setEgresosByCategoria(catArr.slice(0, 5));
+        // Eliminado: cálculo de tendencia neta
       } catch (err: any) {
         toast.error('Error al cargar finanzas');
         console.error(err);
@@ -162,7 +281,8 @@ export default function Finanzas() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'ventas_detalle' }, () => fetchResumen(true))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'compras', filter: `empresa_id=eq.${empresaId}` }, () => fetchResumen(true))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'compras_detalle' }, () => fetchResumen(true))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'cuentas_por_pagar', filter: `empresa_id=eq.${empresaId}` }, () => fetchResumen(true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'egresos', filter: `empresa_id=eq.${empresaId}` }, () => fetchResumen(true))
+      // Eliminada suscripción realtime a cuentas_por_pagar
       .subscribe();
 
     return () => {
@@ -172,6 +292,158 @@ export default function Finanzas() {
   }, [empresaId, profileLoading, period]);
 
   const currencyFormatter = useMemo(() => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }), []);
+  const numberValid = (val: string) => /^\d+(\.\d{1,2})?$/.test(val.trim());
+  const submitEgreso = async () => {
+    if (!empresaId) return;
+    const errs: Record<string, string> = {};
+    if (!numberValid(monto) || Number(monto) <= 0) errs.monto = "Monto inválido";
+    if (!fecha) errs.fecha = "Fecha requerida";
+    if (!categoria.trim()) errs.categoria = "Categoría requerida";
+    if (Object.keys(errs).length) { setFormErrors(errs); return; }
+    setFormErrors({});
+    try {
+      const row = await addEgreso({ empresaId, monto: Number(monto), fecha, categoria, descripcion });
+      await logAuditEgreso('create', empresaId, { id: row.id, monto: row.monto, fecha: row.fecha, categoria: row.categoria });
+      toast.success('Egreso registrado');
+      // Actualización inmediata de la lista
+      setEgresosRows((prev) => [row, ...prev]);
+      // Actualización inmediata de la tarjeta de Egresos y Balance
+      setResumen((prev) => {
+        if (!prev) return prev;
+        const added = Number(row.monto || 0);
+        return {
+          ...prev,
+          egresos_mes: Number(prev.egresos_mes || 0) + added,
+          balance_mes: Number(prev.balance_mes || 0) - added,
+        };
+      });
+      // Actualización de tendencia y categorías principales
+      try {
+        const label = format(new Date(row.fecha), period === 'hoy' ? 'HH:mm' : 'dd MMM');
+        setEgresosTrend((prev) => {
+          const idx = prev.findIndex((t) => t.label === label);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = { label, total: next[idx].total + Number(row.monto || 0) };
+            return next;
+          }
+          return [...prev, { label, total: Number(row.monto || 0) }];
+        });
+        const nextRows = [row, ...egresosRows];
+        const catMap = new Map<string, number>();
+        for (const e of nextRows) {
+          const key = (e.categoria || 'Otros').trim();
+          catMap.set(key, (catMap.get(key) || 0) + Number(e.monto || 0));
+        }
+        const catArr = Array.from(catMap.entries()).map(([categoria, total]) => ({ categoria, total }));
+        catArr.sort((a, b) => b.total - a.total);
+        setEgresosByCategoria(catArr.slice(0, 5));
+      } catch {}
+      // Limpiar formulario
+      setMonto(""); setFecha(""); setCategoria(""); setDescripcion("");
+    } catch (err: any) {
+      const msg = String(err?.message || "");
+      const code = (err as any)?.code || "";
+      const friendly = /Failed to fetch|network|fetch/i.test(msg)
+        ? 'Sin conexión con el servidor'
+        : /rls|policy|permission/i.test(msg)
+        ? 'Sin permisos o perfil sin empresa asignada'
+        : code === 'PGRST205' || /schema cache/i.test(msg) || /relation\s+.*egresos.*\s+does not exist/i.test(msg)
+        ? 'El esquema aún no está sincronizado. Refresca y reintenta en unos segundos'
+        : 'No se pudo registrar el egreso';
+      toast.error(friendly);
+      console.error(err);
+    }
+  };
+
+  const exportEgresosCSV = () => {
+    try {
+      const headers = ['id','fecha','categoria','monto','descripcion'];
+      const rows = egresosRows.map(r => [r.id, r.fecha, (r.categoria || '').replace(/\n|\r/g,''), String(r.monto), (r.descripcion || '').replace(/\n|\r/g,'')]);
+      const csv = [headers.join(','), ...rows.map(cols => cols.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g,'""')}"` : String(v)).join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `egresos_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      toast.error('No se pudo exportar CSV');
+    }
+  };
+  const exportEgresosPDF = (rows: EgresoRow[]) => {
+    try {
+      const doc = new jsPDF({ unit: 'pt' });
+      const title = `Egresos (${period === 'hoy' ? 'Hoy' : period === 'semana' ? 'Semana' : 'Mes'})`;
+      doc.setFontSize(14);
+      doc.text(title, 40, 40);
+      doc.setFontSize(10);
+      doc.text(`Generado: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 40, 60);
+      // Cabeceras
+      const startY = 90;
+      doc.setFont(undefined, 'bold');
+      doc.text('Fecha', 40, startY);
+      doc.text('Categoría', 140, startY);
+      doc.text('Descripción', 260, startY);
+      doc.text('Monto', 480, startY, { align: 'right' });
+      doc.setFont(undefined, 'normal');
+      // Filas
+      let y = startY + 16;
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const lineHeight = 14;
+      rows.forEach((r) => {
+        if (y > pageHeight - 40) {
+          doc.addPage();
+          y = 40;
+        }
+        doc.text(format(new Date(r.fecha), 'dd/MM/yyyy'), 40, y);
+        doc.text(String(r.categoria || '').slice(0, 20), 140, y);
+        doc.text(String(r.descripcion || '').slice(0, 40), 260, y);
+        doc.text(currencyFormatter.format(Number(r.monto || 0)), 480, y, { align: 'right' });
+        y += lineHeight;
+      });
+      // Totales por categoría
+      const catMap = new Map<string, number>();
+      rows.forEach((r) => {
+        const key = (r.categoria || 'Otros').trim();
+        catMap.set(key, (catMap.get(key) || 0) + Number(r.monto || 0));
+      });
+      const total = rows.reduce((s, r) => s + Number(r.monto || 0), 0);
+      if (y > pageHeight - 120) {
+        doc.addPage();
+        y = 40;
+      }
+      doc.setFont(undefined, 'bold');
+      doc.text('Desglose por categorías', 40, y + 10);
+      doc.setFont(undefined, 'normal');
+      y += 30;
+      Array.from(catMap.entries()).sort((a,b) => b[1] - a[1]).forEach(([cat, sum]) => {
+        if (y > pageHeight - 40) {
+          doc.addPage();
+          y = 40;
+        }
+        doc.text(`${cat}`, 40, y);
+        doc.text(currencyFormatter.format(sum), 480, y, { align: 'right' });
+        y += lineHeight;
+      });
+      if (y > pageHeight - 40) {
+        doc.addPage();
+        y = 40;
+      }
+      doc.setFont(undefined, 'bold');
+      doc.text('Total', 40, y + 10);
+      doc.text(currencyFormatter.format(total), 480, y + 10, { align: 'right' });
+
+      doc.save(`egresos_${new Date().toISOString().slice(0,10)}.pdf`);
+    } catch (err) {
+      console.error(err);
+      toast.error('No se pudo exportar PDF');
+    }
+  };
 
   if (profileLoading || loading) {
     return <div className="flex items-center justify-center h-96">Cargando...</div>;
@@ -181,66 +453,35 @@ export default function Finanzas() {
     return <div className="flex items-center justify-center h-96 text-muted-foreground">No hay empresa asociada a tu usuario.</div>;
   }
 
-  // (moved) Hooks de CxP re-ubicados arriba para cumplir reglas de Hooks
-
-  const refreshVencimientos = async () => {
-    if (!empresaId) return;
-    try {
-      const { data, error } = await supabase.rpc('refresh_cxp_estado', { _empresa: empresaId });
-      if (error) throw error;
-      toast.message(`Actualizados ${Number(data || 0)} vencimientos`);
-      const { data: refData } = await supabase
-        .from('cuentas_por_pagar')
-        .select('id, proveedor_id, compra_id, monto, fecha_emision, fecha_vencimiento, estado')
-        .eq('empresa_id', empresaId)
-        .order('fecha_vencimiento', { ascending: true });
-      setCxp((refData || []) as any);
-    } catch (err) {
-      toast.error('No se pudo actualizar vencimientos');
-    }
-  };
-
-  const markPagada = async (id: string) => {
-    // Actualización optimista para que desaparezca de inmediato en filtros de 'pendiente'
-    const snapshot = cxp;
-    setCxp((prev) => prev.map((x) => (x.id === id ? { ...x, estado: 'pagado' } : x)));
-    try {
-      const { error } = await supabase
-        .from('cuentas_por_pagar')
-        .update({ estado: 'pagado' })
-        .eq('id', id);
-      if (error) throw error;
-      toast.success('Cuenta marcada como pagada');
-    } catch (err) {
-      // Revertir si falla
-      setCxp(snapshot);
-      toast.error('No se pudo marcar como pagada');
-    }
-  };
+  // Eliminadas funciones: refreshVencimientos y markPagada
 
   return (
-    <div className="space-y-6">
+    <RequirePermission permission="finanzas_view">
+      <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold">Finanzas</h2>
         <div className="flex items-center gap-3 mt-1">
           <p className="text-muted-foreground">Resumen financiero consolidado.</p>
           {updating && <span className="text-xs text-muted-foreground animate-pulse">Actualizando…</span>}
         </div>
-        <div className="mt-4 w-full sm:w-64">
-          <Select value={period} onValueChange={(v) => setPeriod(v as any)}>
-            <SelectTrigger aria-label="Periodo">
-              <SelectValue placeholder="Periodo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="hoy">Hoy</SelectItem>
-              <SelectItem value="semana">Semana</SelectItem>
-              <SelectItem value="mes">Mes</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
+          <div className="w-full sm:w-64">
+            <Select value={period} onValueChange={(v) => setPeriod(v as any)}>
+              <SelectTrigger aria-label="Periodo">
+                <SelectValue placeholder="Periodo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="hoy">Hoy</SelectItem>
+                <SelectItem value="semana">Semana</SelectItem>
+                <SelectItem value="mes">Mes</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={() => setFormOpen((o) => !o)}>{formOpen ? 'Ocultar formulario' : 'Registrar egreso'}</Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Ingresos ({period === 'hoy' ? 'Hoy' : period === 'semana' ? 'Semana' : 'Mes'})</CardTitle>
@@ -253,10 +494,52 @@ export default function Finanzas() {
         <Card>
           <CardHeader>
             <CardTitle>Egresos ({period === 'hoy' ? 'Hoy' : period === 'semana' ? 'Semana' : 'Mes'})</CardTitle>
-            <CardDescription>Compras recibidas del periodo</CardDescription>
+            <CardDescription>COGS + egresos operacionales</CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold">{currencyFormatter.format(Number(resumen?.egresos_mes || 0))}</p>
+            {egresosTrend.length > 0 ? (
+              <div className="mt-4">
+                {(() => {
+                  const width = 320;
+                  const height = 96;
+                  const padding = 8;
+                  const maxTotal = Math.max(1, ...egresosTrend.map((x) => x.total));
+                  const stepX = (width - padding * 2) / Math.max(1, egresosTrend.length - 1);
+                  const points = egresosTrend.map((t, i) => {
+                    const x = padding + i * stepX;
+                    const y = padding + (1 - (t.total / maxTotal)) * (height - padding * 2);
+                    return { x, y, label: t.label, total: t.total };
+                  });
+                  const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+                  const area = `${path} L ${padding + (egresosTrend.length - 1) * stepX},${height - padding} L ${padding},${height - padding} Z`;
+                  return (
+                    <svg width={width} height={height} className="text-muted-foreground">
+                      <path d={area} fill="rgba(220,38,38,0.15)" />
+                      <path d={path} stroke="rgba(220,38,38,0.8)" strokeWidth="2" fill="none" />
+                      {points.map((p) => (
+                        <circle key={`pt-${p.label}`} cx={p.x} cy={p.y} r="2" fill="rgba(220,38,38,0.9)">
+                          <title>{`${p.label}: ${currencyFormatter.format(p.total)}`}</title>
+                        </circle>
+                      ))}
+                    </svg>
+                  );
+                })()}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground mt-2">Sin datos para tendencia.</p>
+            )}
+            {egresosByCategoria.length > 0 && (
+              <div className="mt-4 space-y-1">
+                <div className="text-sm font-medium">Categorías principales</div>
+                {egresosByCategoria.map((c) => (
+                  <div key={c.categoria} className="flex justify-between text-xs">
+                    <span>{c.categoria}</span>
+                    <span>{currencyFormatter.format(c.total)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -268,108 +551,211 @@ export default function Finanzas() {
             <p className="text-3xl font-bold">{currencyFormatter.format(Number(resumen?.balance_mes || 0))}</p>
           </CardContent>
         </Card>
+        {/* Métricas financieras agrupadas */}
         <Card>
           <CardHeader>
-            <CardTitle>Cuentas por pagar</CardTitle>
-            <CardDescription>Compras pendientes</CardDescription>
+            <CardTitle>Utilidad Operacional</CardTitle>
+            <CardDescription>
+              <Tooltip>
+                <TooltipTrigger>Ingresos - Gastos operacionales</TooltipTrigger>
+                <TooltipContent>Incluye compras (COGS) y egresos registrados</TooltipContent>
+              </Tooltip>
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{currencyFormatter.format(Number(resumen?.cuentas_por_pagar || 0))}</p>
+            <p className="text-2xl font-bold">{currencyFormatter.format(Number((resumen?.ingresos_mes || 0) - (resumen?.egresos_mes || 0)))}</p>
+            <div className="text-xs mt-1">
+              {(() => {
+                const cur = Number((resumen?.ingresos_mes || 0) - (resumen?.egresos_mes || 0));
+                const prev = Number((prevResumen?.ingresos_mes || 0) - (prevResumen?.egresos_mes || 0));
+                const diff = cur - prev;
+                const pct = prev !== 0 ? (diff / Math.abs(prev)) * 100 : 0;
+                const up = diff >= 0;
+                return (
+                  <span className={up ? 'text-emerald-600' : 'text-destructive'}>
+                    {up ? '▲' : '▼'} {pct.toFixed(1)}% vs periodo previo
+                  </span>
+                );
+              })()}
+            </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Utilidad Bruta</CardTitle>
+            <CardDescription>
+              <Tooltip>
+                <TooltipTrigger>Ventas - Costo de ventas</TooltipTrigger>
+                <TooltipContent>COGS aproximado desde compras recibidas</TooltipContent>
+              </Tooltip>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{currencyFormatter.format(Number((resumen?.ingresos_mes || 0) - (resumen?.cogs || 0)))}</p>
+            <div className="text-xs text-muted-foreground mt-1">{(() => {
+              const ventas = Number(resumen?.ingresos_mes || 0);
+              const cogs = Number(resumen?.cogs || 0);
+              const pct = ventas > 0 ? ((ventas - cogs) / ventas) * 100 : 0;
+              return `Margen bruto: ${pct.toFixed(1)}%`;
+            })()}</div>
+            <div className="text-xs mt-1">
+              {(() => {
+                const cur = Number((resumen?.ingresos_mes || 0) - (resumen?.cogs || 0));
+                const prev = Number((prevResumen?.ingresos_mes || 0) - (prevResumen?.cogs || 0));
+                const diff = cur - prev;
+                const pct = prev !== 0 ? (diff / Math.abs(prev)) * 100 : 0;
+                const up = diff >= 0;
+                return (
+                  <span className={up ? 'text-emerald-600' : 'text-destructive'}>
+                    {up ? '▲' : '▼'} {pct.toFixed(1)}% vs periodo previo
+                  </span>
+                );
+              })()}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Margen Proyectado</CardTitle>
+            <CardDescription>
+              <Tooltip>
+                <TooltipTrigger>Escenarios históricos</TooltipTrigger>
+                <TooltipContent>Proyección simple basada en valores actuales</TooltipContent>
+              </Tooltip>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const ventas = Number(resumen?.ingresos_mes || 0);
+              const cogs = Number(resumen?.cogs || 0);
+              const egresos = Number(resumen?.egresos_mes || 0);
+              const margenActual = ventas > 0 ? (ventas - cogs) / ventas : 0;
+              const optimistaVentas = ventas * 1.15;
+              const optimistaEgresos = egresos * 0.95;
+              const pesimistaVentas = ventas * 0.85;
+              const pesimistaEgresos = egresos * 1.05;
+              // Escenario puro (sin sumar el resultado actual)
+              const optimistaPuro = optimistaVentas * margenActual - optimistaEgresos;
+              const pesimistaPuro = pesimistaVentas * margenActual - pesimistaEgresos;
+              // Escenario + resultado actual
+              const resultadoActual = ventas - egresos;
+              const optimistaConBase = optimistaPuro + resultadoActual;
+              const pesimistaConBase = pesimistaPuro + resultadoActual;
+              return (
+                <div className="text-sm space-y-1">
+                  <div className="text-muted-foreground">Escenario puro</div>
+                  <div>Optimista: {currencyFormatter.format(optimistaPuro)}</div>
+                  <div>Pesimista: {currencyFormatter.format(pesimistaPuro)}</div>
+                  <div className="mt-2 text-muted-foreground">Con base actual</div>
+                  <div>Optimista: {currencyFormatter.format(optimistaConBase)}</div>
+                  <div>Pesimista: {currencyFormatter.format(pesimistaConBase)}</div>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+        {/* Eliminada tarjeta: Cuentas por pagar (resumen) */}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Flujo Neto del Periodo</CardTitle>
-          <CardDescription>Ingresos menos egresos</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {netTrend.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin datos en el periodo.</p>
-          ) : (
-            <div className="flex items-end gap-2 h-40">
-              {netTrend.map((t) => (
-                <div key={t.label} className="flex flex-col items-center gap-2">
-                  <div
-                    className="w-4 bg-primary rounded"
-                    style={{ height: `${(t.total / Math.max(1, ...netTrend.map((x) => x.total))) * 100}%` }}
-                    title={`${t.label}: ${currencyFormatter.format(t.total)}`}
-                  />
-                  <span className="text-[10px] text-muted-foreground">{t.label}</span>
-                </div>
-              ))}
+      {/* Formulario flotante con Dialog (consistencia con Inventario/Ventas) */}
+      <Dialog open={formOpen} onOpenChange={(v) => setFormOpen(v)}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Registrar Egreso</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="text-sm" htmlFor="monto">Monto</label>
+              <Input id="monto" inputMode="decimal" placeholder="0.00" value={monto} onChange={(e) => setMonto(e.target.value)} aria-invalid={!!formErrors.monto} />
+              {formErrors.monto && <div className="text-xs text-destructive mt-1">{formErrors.monto}</div>}
             </div>
-          )}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Cuentas por pagar</CardTitle>
-          <CardDescription>Compras pendientes y vencidas</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row md:items-end gap-4 mb-4">
-            <div className="space-y-2">
-              <label className="text-sm">Estado</label>
-              <Select value={cxpEstado} onValueChange={(v) => setCxpEstado(v as any)}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas</SelectItem>
-                  <SelectItem value="pendiente">Pendiente</SelectItem>
-                  <SelectItem value="vencida">Vencida</SelectItem>
-                  <SelectItem value="pagado">Pagada</SelectItem>
-                </SelectContent>
-              </Select>
+            <div>
+              <label className="text-sm" htmlFor="fecha">Fecha</label>
+              <Input id="fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} aria-invalid={!!formErrors.fecha} />
+              {formErrors.fecha && <div className="text-xs text-destructive mt-1">{formErrors.fecha}</div>}
             </div>
-            <Button variant="outline" onClick={refreshVencimientos} disabled={!empresaId || cxpLoading}>Refrescar vencimientos</Button>
+            <div>
+              <label className="text-sm" htmlFor="categoria">Categoría</label>
+              <Input id="categoria" placeholder="Servicios, Impuestos, Renta..." value={categoria} onChange={(e) => setCategoria(e.target.value)} aria-invalid={!!formErrors.categoria} />
+              {formErrors.categoria && <div className="text-xs text-destructive mt-1">{formErrors.categoria}</div>}
+            </div>
+            <div className="sm:col-span-2 lg:col-span-1">
+              <label className="text-sm" htmlFor="descripcion">Descripción</label>
+              <Textarea id="descripcion" placeholder="Detalle del egreso" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
+            </div>
           </div>
-          {cxpLoading ? (
-            <div className="text-sm text-muted-foreground">Cargando…</div>
-          ) : cxp.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No hay cuentas por pagar.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Compra</TableHead>
-                  <TableHead>Proveedor</TableHead>
-                  <TableHead>Monto</TableHead>
-                  <TableHead>Vence</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {cxp
-                  .filter((x) => cxpEstado === 'todas' ? true : x.estado === cxpEstado)
-                  .map((x) => (
-                  <TableRow key={x.id}>
-                    <TableCell>{x.compra_id ? String(x.compra_id).slice(0, 8) : '-'}</TableCell>
-                    <TableCell>{x.proveedor_id ? String(x.proveedor_id).slice(0, 8) : '-'}</TableCell>
-                    <TableCell>${Number(x.monto || 0).toFixed(2)}</TableCell>
-                    <TableCell>{new Date(x.fecha_vencimiento).toLocaleDateString()}</TableCell>
-                    <TableCell>
-                      {x.estado === 'vencida' && <Badge variant="destructive">Vencida</Badge>}
-                      {x.estado === 'pendiente' && <Badge variant="outline">Pendiente</Badge>}
-                      {x.estado === 'pagado' && <Badge variant="secondary">Pagada</Badge>}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => markPagada(x.id)} disabled={x.estado === 'pagado'}>
-                          Marcar pagada
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          <div className="mt-4 flex items-center gap-3">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button onClick={submitEgreso}>Guardar egreso</Button>
+              </TooltipTrigger>
+              <TooltipContent>Registra y actualiza métricas en tiempo real</TooltipContent>
+            </Tooltip>
+            <Button variant="outline" onClick={() => { setMonto(""); setFecha(""); setCategoria(""); setDescripcion(""); setFormErrors({}); }}>Limpiar</Button>
+            <Button variant="outline" onClick={exportEgresosCSV}>Exportar CSV</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Listado y filtros de egresos */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Egresos del periodo</CardTitle>
+          <CardDescription>Filtra y explora tus egresos; exporta PDF por categoría.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label className="text-sm" htmlFor="filtroDesde2">Filtrar desde</label>
+              <Input id="filtroDesde2" type="date" value={filtroDesde} onChange={(e) => setFiltroDesde(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm" htmlFor="filtroHasta2">Filtrar hasta</label>
+              <Input id="filtroHasta2" type="date" value={filtroHasta} onChange={(e) => setFiltroHasta(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-sm" htmlFor="filtroCat2">Categoría</label>
+              <Input id="filtroCat2" placeholder="Categoría" value={filtroCat} onChange={(e) => setFiltroCat(e.target.value)} />
+            </div>
+            <div className="flex items-end">
+              <Button variant="outline" onClick={() => exportEgresosPDF(filteredEgresos)}>Exportar PDF</Button>
+            </div>
+          </div>
+          <div className="mt-4 border rounded">
+            <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-medium bg-muted/50">
+              <div className="col-span-3">Fecha</div>
+              <div className="col-span-3">Categoría</div>
+              <div className="col-span-3">Descripción</div>
+              <div className="col-span-3 text-right">Monto</div>
+            </div>
+            {filteredEgresos.length === 0 && (
+              <div className="px-3 py-2 text-xs text-muted-foreground">Sin egresos para los filtros seleccionados.</div>
+            )}
+            {filteredEgresos.map((r) => (
+              <div key={r.id} className="grid grid-cols-12 gap-2 px-3 py-2 text-xs border-t">
+                <div className="col-span-3">{format(new Date(r.fecha), 'dd/MM/yyyy')}</div>
+                <div className="col-span-3">{r.categoria}</div>
+                <div className="col-span-3 truncate" title={r.descripcion || ''}>{r.descripcion}</div>
+                <div className="col-span-3 text-right">{currencyFormatter.format(Number(r.monto || 0))}</div>
+              </div>
+            ))}
+            {filteredEgresos.length > 0 && (
+              <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs bg-muted/30 border-t">
+                <div className="col-span-9 font-medium">Total filtrado</div>
+                <div className="col-span-3 text-right font-medium">
+                  {currencyFormatter.format(filteredEgresos.reduce((s, r) => s + Number(r.monto || 0), 0))}
+                </div>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
-    </div>
+
+      {/* Eliminada tarjeta: Flujo Neto del Periodo */}
+      {/* Eliminada sección: Cuentas por pagar (detalle y acciones) */}
+      </div>
+    </RequirePermission>
   );
 }

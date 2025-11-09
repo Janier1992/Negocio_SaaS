@@ -4,12 +4,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { AlertTriangle, CheckCircle2, Filter } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/newClient";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { toast } from "sonner";
 import { useSearchParams } from "react-router-dom";
-import { fetchAlerts, subscribeAlerts, markAlertRead, AlertRow } from "@/services/alerts";
+import { fetchAlertsPaged, subscribeAlerts, markAlertRead, AlertRow } from "@/services/alerts";
 
 type Alerta = AlertRow & { producto_id?: string | null };
 
@@ -17,6 +17,7 @@ const Alertas = () => {
   const { empresaId, loading: profileLoading } = useUserProfile();
   const [loading, setLoading] = useState(true);
   const [alertas, setAlertas] = useState<Alerta[]>([]);
+  const [productosMap, setProductosMap] = useState<Map<string, { nombre?: string; codigo?: string; stock?: number }>>(new Map());
   const [search, setSearch] = useState("");
   const [estado, setEstado] = useState<"todas" | "activas" | "leidas">("todas");
   const [tipo, setTipo] = useState<"todos" | "stock_bajo" | "stock_critico">("todos");
@@ -27,6 +28,9 @@ const Alertas = () => {
   const [sortAsc, setSortAsc] = useState<boolean>(false);
   const [totalActivas, setTotalActivas] = useState<number>(0);
   const [params] = useSearchParams();
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [totalCount, setTotalCount] = useState<number>(0);
 
   const fetchAlertas = async () => {
     if (!empresaId) return;
@@ -36,9 +40,76 @@ const Alertas = () => {
       const hasta = dateTo ? new Date(dateTo).toISOString() : undefined;
       const orderBy = sortKey === "fecha" ? "created_at" : sortKey === "tipo" ? "tipo" : "created_at";
       try {
-        const data = await fetchAlerts({ empresaId, desde, hasta, orderBy, orderAsc: sortAsc });
+        const leidaFilter = supportsLeida
+          ? (estado === "activas" ? false : estado === "leidas" ? true : undefined)
+          : undefined;
+        const tipoFilter = tipo === "todos" ? undefined : tipo;
+        const { rows, count } = await fetchAlertsPaged({ empresaId, desde, hasta, tipo: tipoFilter, leida: leidaFilter, search, orderBy, orderAsc: sortAsc, page, pageSize });
+        const dbRows = rows as Alerta[];
         setSupportsLeida(true);
-        setAlertas(data as Alerta[]);
+        const ids = Array.from(new Set((dbRows).map(r => String(r.producto_id)).filter(Boolean)));
+        if (ids.length > 0) {
+          const { data: prodRows, error: prodErr } = await supabase
+            .from("productos")
+            .select("id, nombre, codigo, stock")
+            .in("id", ids);
+          if (!prodErr) {
+            const map = new Map<string, { nombre?: string; codigo?: string; stock?: number }>();
+            for (const p of (prodRows || [])) {
+              map.set(String(p.id), { nombre: p.nombre, codigo: p.codigo, stock: p.stock });
+            }
+            setProductosMap(map);
+          }
+        } else {
+          setProductosMap(new Map());
+        }
+        // Genera SIEMPRE alertas sintéticas desde productos y combina con las reales
+        const { data: prods, error: prodsErr } = await supabase
+          .from("productos")
+          .select("id, nombre, codigo, stock, stock_minimo")
+          .eq("empresa_id", empresaId);
+        let synthetic: Alerta[] = [];
+        if (!prodsErr && Array.isArray(prods)) {
+          for (const p of prods) {
+            const stock = Number(p.stock || 0);
+            const min = Number(p.stock_minimo || 0);
+            if (min > 0) {
+              const nombre = p.nombre || String(p.id);
+              const crit = stock <= Math.floor(min / 2);
+              const bajo = !crit && stock <= min;
+              if (crit || bajo) {
+                const tipoVal = crit ? "stock_critico" : "stock_bajo";
+                // Filtros actuales aplicados a sintéticas
+                if (tipoFilter && tipoFilter !== tipoVal) continue;
+                if (leidaFilter === true) continue; // sintéticas no son leídas
+                const titulo = crit ? `Stock crítico en ${nombre}` : `Stock bajo en ${nombre}`;
+                const mensaje = crit
+                  ? `Stock (${stock}) por debajo de la mitad del mínimo (${min}).`
+                  : `Stock (${stock}) por debajo del mínimo (${min}).`;
+                const searchLow = (search || "").trim().toLowerCase();
+                if (searchLow) {
+                  const hay = titulo.toLowerCase().includes(searchLow) || mensaje.toLowerCase().includes(searchLow);
+                  if (!hay) continue;
+                }
+                const nowIso = new Date().toISOString();
+                if (desde && nowIso < desde) continue;
+                if (hasta && nowIso > hasta) continue;
+                synthetic.push({
+                  id: `synthetic:${p.id}:${crit ? "critico" : "bajo"}`,
+                  tipo: tipoVal,
+                  titulo,
+                  mensaje,
+                  created_at: nowIso,
+                  leida: false,
+                  producto_id: String(p.id),
+                });
+              }
+            }
+          }
+        }
+        const combined = [...dbRows, ...synthetic];
+        setAlertas(combined);
+        setTotalCount((count || 0) + synthetic.length);
       } catch (error: any) {
         const msg = String(error?.message || "").toLowerCase();
         if (msg.includes("column") && msg.includes("leida")) {
@@ -50,7 +121,40 @@ const Alertas = () => {
             .eq("empresa_id", empresaId)
             .order("created_at", { ascending: sortAsc });
           if (retry.error) throw retry.error;
-          setAlertas((retry.data || []) as Alerta[]);
+          const dbBasic = (retry.data || []) as Alerta[];
+          // Combina con sintéticas también en modo básico
+          const { data: prods, error: prodsErr } = await supabase
+            .from("productos")
+            .select("id, nombre, codigo, stock, stock_minimo")
+            .eq("empresa_id", empresaId);
+          let syntheticBasic: Alerta[] = [];
+          if (!prodsErr && Array.isArray(prods)) {
+            for (const p of prods) {
+              const stock = Number(p.stock || 0);
+              const min = Number(p.stock_minimo || 0);
+              if (min > 0) {
+                const nombre = p.nombre || String(p.id);
+                const crit = stock <= Math.floor(min / 2);
+                const bajo = !crit && stock <= min;
+                if (crit || bajo) {
+                  const tipoVal = crit ? "stock_critico" : "stock_bajo";
+                  syntheticBasic.push({
+                    id: `synthetic:${p.id}:${crit ? "critico" : "bajo"}`,
+                    tipo: tipoVal,
+                    titulo: crit ? `Stock crítico en ${nombre}` : `Stock bajo en ${nombre}`,
+                    mensaje: crit
+                      ? `Stock (${stock}) por debajo de la mitad del mínimo (${min}).`
+                      : `Stock (${stock}) por debajo del mínimo (${min}).`,
+                    created_at: new Date().toISOString(),
+                    leida: false,
+                    producto_id: String(p.id),
+                  });
+                }
+              }
+            }
+          }
+          setAlertas([...dbBasic, ...syntheticBasic]);
+          setTotalCount((dbBasic.length || 0) + (syntheticBasic.length || 0));
         } else {
           throw error;
         }
@@ -63,6 +167,52 @@ const Alertas = () => {
         // Navegación abortada o cancelaciones internas: no mostrar error
       } else if (isNetwork) {
         toast.error("Sin conexión con el servidor. Reintenta en unos segundos…");
+        // Fallback de red: intenta construir alertas sintéticas desde productos
+        try {
+          const { data: prods, error: prodsErr } = await supabase
+            .from("productos")
+            .select("id, nombre, codigo, stock, stock_minimo")
+            .eq("empresa_id", empresaId);
+          if (!prodsErr && Array.isArray(prods)) {
+            const synthetic: Alerta[] = [];
+            const map = new Map<string, { nombre?: string; codigo?: string; stock?: number }>();
+            for (const p of prods) {
+              const stock = Number(p.stock || 0);
+              const min = Number(p.stock_minimo || 0);
+              if (min > 0) {
+                const nombre = p.nombre || String(p.id);
+                if (stock <= Math.floor(min / 2)) {
+                  synthetic.push({
+                    id: `synthetic:${p.id}:critico`,
+                    tipo: "stock_critico",
+                    titulo: `Stock crítico en ${nombre}`,
+                    mensaje: `Stock (${stock}) por debajo de la mitad del mínimo (${min}).`,
+                    created_at: new Date().toISOString(),
+                    leida: false,
+                    producto_id: String(p.id),
+                  });
+                } else if (stock <= min) {
+                  synthetic.push({
+                    id: `synthetic:${p.id}:bajo`,
+                    tipo: "stock_bajo",
+                    titulo: `Stock bajo en ${nombre}`,
+                    mensaje: `Stock (${stock}) por debajo del mínimo (${min}).`,
+                    created_at: new Date().toISOString(),
+                    leida: false,
+                    producto_id: String(p.id),
+                  });
+                }
+                map.set(String(p.id), { nombre: p.nombre, codigo: p.codigo, stock: p.stock });
+              }
+            }
+            setAlertas(synthetic);
+            setProductosMap(map);
+            setSupportsLeida(false);
+            setTotalCount(synthetic.length);
+          }
+        } catch (fallbackErr) {
+          console.warn("[Alertas] Fallback de red desde productos falló:", fallbackErr);
+        }
       } else {
         toast.error("Error al cargar alertas");
       }
@@ -80,15 +230,22 @@ const Alertas = () => {
     if (qpDesde) setDateFrom(qpDesde);
     if (qpHasta) setDateTo(qpHasta);
     fetchAlertas();
-    const ch = subscribeAlerts(empresaId, () => fetchAlertas());
+    const chAlertas = subscribeAlerts(empresaId, () => fetchAlertas());
+    // Suscripción adicional a productos para actualizar el fallback
+    const chProductos = supabase
+      .channel(`alertas-productos-${empresaId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "productos", filter: `empresa_id=eq.${empresaId}` }, () => fetchAlertas())
+      .subscribe();
     return () => {
-      supabase.removeChannel(ch);
+      supabase.removeChannel(chAlertas);
+      supabase.removeChannel(chProductos);
     };
   }, [empresaId]);
 
   const marcarLeida = async (id: string) => {
-    if (!supportsLeida) {
-      toast.info("La marcación de lectura no está disponible en esta instancia.");
+    const isUuid = /^[0-9a-fA-F-]{36}$/.test(id);
+    if (!supportsLeida || !isUuid) {
+      toast.info("La marcación de lectura solo aplica a alertas reales.");
       return;
     }
     try {
@@ -123,32 +280,9 @@ const Alertas = () => {
   };
 
   const filteredAlertas = useMemo(() => {
-    const base = alertas.filter(a => {
-      const matchSearch =
-        search.trim().length === 0 ||
-        a.titulo.toLowerCase().includes(search.toLowerCase()) ||
-        a.mensaje.toLowerCase().includes(search.toLowerCase());
-      const matchEstado = supportsLeida
-        ? (estado === "todas" || (estado === "activas" && !a.leida) || (estado === "leidas" && !!a.leida))
-        : true; // si no hay soporte de "leida", ignoramos el filtro de estado
-      const matchTipo = tipo === "todos" || a.tipo === tipo;
-      return matchSearch && matchEstado && matchTipo;
-    });
-    const withSort = [...base];
-    if (sortKey === "prioridad") {
-      const priority = (t: string) => (t === "stock_critico" ? 3 : t === "stock_bajo" ? 2 : 1);
-      withSort.sort((a, b) => (sortAsc ? 1 : -1) * (priority(a.tipo) - priority(b.tipo)));
-    } else if (sortKey === "tipo") {
-      withSort.sort((a, b) => (sortAsc ? 1 : -1) * a.tipo.localeCompare(b.tipo));
-    } else {
-      withSort.sort((a, b) => {
-        const da = new Date(a.created_at).getTime();
-        const db = new Date(b.created_at).getTime();
-        return (sortAsc ? 1 : -1) * (da - db);
-      });
-    }
-    return withSort;
-  }, [alertas, search, estado, tipo, sortKey, sortAsc, supportsLeida]);
+    // El orden y filtros principales se aplican server-side; aquí sólo devolvemos la página actual
+    return alertas;
+  }, [alertas]);
 
   useEffect(() => {
     setTotalActivas(alertas.filter(a => !a.leida).length);
@@ -185,53 +319,13 @@ const Alertas = () => {
           <p className="text-muted-foreground mt-1">Gestión de alertas del sistema</p>
           <div className="text-sm mt-1">Activas: <span className="font-semibold">{totalActivas}</span></div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={fetchAlertas} className="gap-2">
-            <Filter className="h-4 w-4" />
-            Actualizar
-          </Button>
-          {supportsLeida && (
-          <Button onClick={marcarTodasLeidas} className="gap-2">
-            <CheckCircle2 className="h-4 w-4" />
-            Marcar todas como leídas
-          </Button>
-          )}
-        </div>
+        {/* Se eliminan botones secundarios del header para simplificar el módulo */}
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Listado de Alertas</CardTitle>
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 mt-4">
-            <div className="relative">
-              <Input
-                placeholder="Buscar por título o mensaje..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant={estado === "todas" ? "default" : "outline"}
-                onClick={() => setEstado("todas")}
-              >
-                Todas
-              </Button>
-              <Button
-                variant={estado === "activas" ? "default" : "outline"}
-                onClick={() => supportsLeida && setEstado("activas")}
-                disabled={!supportsLeida}
-              >
-                Activas
-              </Button>
-              <Button
-                variant={estado === "leidas" ? "default" : "outline"}
-                onClick={() => supportsLeida && setEstado("leidas")}
-                disabled={!supportsLeida}
-              >
-                Leídas
-              </Button>
-            </div>
+          <div className="grid grid-cols-1 gap-3 mt-4">
             <div className="flex gap-2">
               <Button
                 variant={tipo === "todos" ? "default" : "outline"}
@@ -251,20 +345,21 @@ const Alertas = () => {
               >
                 Stock Crítico
               </Button>
-            </div>
-            <div className="flex flex-col gap-2">
-              <div className="flex gap-2">
-                <Input type="date" value={dateFrom || ""} onChange={(e) => setDateFrom(e.target.value)} />
-                <Input type="date" value={dateTo || ""} onChange={(e) => setDateTo(e.target.value)} />
-                <Button variant="secondary" onClick={fetchAlertas}>Aplicar</Button>
-                <Button variant="ghost" onClick={() => { setDateFrom(null); setDateTo(null); fetchAlertas(); }}>Limpiar</Button>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant={sortKey === "fecha" ? "default" : "outline"} onClick={() => setSortKey("fecha")}>Fecha</Button>
-                <Button variant={sortKey === "prioridad" ? "default" : "outline"} onClick={() => setSortKey("prioridad")}>Prioridad</Button>
-                <Button variant={sortKey === "tipo" ? "default" : "outline"} onClick={() => setSortKey("tipo")}>Tipo</Button>
-                <Button variant="outline" onClick={() => setSortAsc((v) => !v)}>{sortAsc ? "Asc" : "Desc"}</Button>
-              </div>
+              <Button
+                variant="ghost"
+                onClick={() => { 
+                  setTipo("todos");
+                  setSearch("");
+                  setDateFrom(null);
+                  setDateTo(null);
+                  setSortKey("fecha");
+                  setSortAsc(false);
+                  setPage(1);
+                  fetchAlertas();
+                }}
+              >
+                Limpiar
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -286,6 +381,15 @@ const Alertas = () => {
                       {supportsLeida && a.leida && <Badge variant="outline">Leída</Badge>}
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">{a.mensaje}</p>
+                    {a.producto_id && productosMap.get(String(a.producto_id)) && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        <span className="font-medium">{productosMap.get(String(a.producto_id))?.nombre}</span>
+                        {productosMap.get(String(a.producto_id))?.codigo && (
+                          <span className="ml-2">Código: {productosMap.get(String(a.producto_id))?.codigo}</span>
+                        )}
+                        <span className="ml-2">Stock: {productosMap.get(String(a.producto_id))?.stock ?? '-'}</span>
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground mt-1">{new Date(a.created_at).toLocaleString()}</p>
                   </div>
                   <div className="flex flex-col gap-2">
@@ -300,6 +404,25 @@ const Alertas = () => {
             </div>
           )}
           <Separator className="my-4" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs text-muted-foreground">
+              Mostrando <span className="font-semibold">{filteredAlertas.length}</span> de <span className="font-semibold">{totalCount}</span> alertas
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => { setPage((p) => Math.max(1, p - 1)); fetchAlertas(); }} disabled={page <= 1}>Anterior</Button>
+              <span className="text-sm">Página {page} de {Math.max(1, Math.ceil(totalCount / pageSize))}</span>
+              <Button variant="outline" size="sm" onClick={() => { const totalPages = Math.max(1, Math.ceil(totalCount / pageSize)); setPage((p) => Math.min(totalPages, p + 1)); fetchAlertas(); }} disabled={page >= Math.max(1, Math.ceil(totalCount / pageSize))}>Siguiente</Button>
+              <select
+                className="text-sm border rounded px-2 py-1 bg-background"
+                value={pageSize}
+                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); fetchAlertas(); }}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
           <p className="text-xs text-muted-foreground">
             Las alertas se generan automáticamente según el stock y otros eventos.
           </p>

@@ -101,7 +101,7 @@ export default function Auth() {
           throw new Error("Correo inválido");
         }
         if (!validatePassword(trimmedPassword)) {
-          throw new Error("La contraseña debe tener mínimo 8 caracteres y 1 número");
+          throw new Error("La contraseña debe tener mínimo 10 caracteres, mayúscula, minúscula, número y símbolo");
         }
 
         try {
@@ -275,7 +275,7 @@ export default function Auth() {
 
   const handleUpdatePassword = async () => {
     if (!validatePassword(newPassword)) {
-      toast.error("La nueva contraseña debe tener mínimo 8 caracteres y 1 número");
+      toast.error("La nueva contraseña debe tener mínimo 10 caracteres, mayúscula, minúscula, número y símbolo");
       return;
     }
     if (newPassword !== newPassword2) {

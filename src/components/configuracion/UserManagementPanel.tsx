@@ -10,8 +10,8 @@ import { supabase } from "@/integrations/supabase/newClient";
 import { validateEmail, validatePassword } from "@/services/users";
 import { useUserProfile } from "@/hooks/useUserProfile";
 
-type AppRole = "admin" | "empleado" | "viewer";
-const ROLES: AppRole[] = ["admin", "empleado", "viewer"];
+type AppRole = "admin" | "administrativo" | "ventas" | "inventario" | "finanzas" | "auxiliar" | "empleado" | "viewer";
+const ROLES: AppRole[] = ["admin", "administrativo", "ventas", "inventario", "finanzas", "auxiliar", "empleado", "viewer"];
 
 type ProfileRow = {
   id: string;
@@ -79,14 +79,13 @@ export const UserManagementPanel = () => {
   const fetchUserRoles = async (userId: string) => {
     if (!userId) return;
     try {
-      // Intentar ambos esquemas de user_roles
-      const res = await supabase
+      // Esquema actual: user_roles no incluye empresa_id; filtrar por user_id únicamente
+      const { data, error } = await supabase
         .from("user_roles")
-        .select("user_id, empresa_id, role, rol")
-        .eq("user_id", userId)
-        .eq("empresa_id", empresaId);
-      if (res.error) throw res.error;
-      const rows = (res.data || []) as RoleRow[];
+        .select("user_id, role, rol")
+        .eq("user_id", userId);
+      if (error) throw error;
+      const rows = (data || []) as RoleRow[];
       const roles = rows.map(r => (r.role || r.rol) as AppRole).filter(Boolean) as AppRole[];
       setUserRoles([...new Set(roles)]);
     } catch (err: any) {
@@ -107,7 +106,7 @@ export const UserManagementPanel = () => {
     const password = regPassword;
     const fullName = regFullName.trim() || null;
     if (!validateEmail(email)) { setRegError("Correo inválido"); toast.error("Correo inválido"); return; }
-    if (!validatePassword(password)) { setRegError("La contraseña debe tener mínimo 8 caracteres y 1 número"); toast.error("Contraseña insegura"); return; }
+    if (!validatePassword(password)) { setRegError("La contraseña debe tener mínimo 10 caracteres, mayúscula, minúscula, número y símbolo"); toast.error("Contraseña insegura"); return; }
     setRegSubmitting(true);
     try {
       const svc = await import("@/services/users");
@@ -193,10 +192,21 @@ export const UserManagementPanel = () => {
         _roles: userRoles,
         _replace: true,
       });
-      if (error) throw error;
-      if (String(data) !== "ok") throw new Error("Respuesta inesperada del servidor");
+      if (error) throw error; // algunos entornos devuelven null/void como data; considerar éxito si no hay error
       toast.success("Roles asignados");
       await fetchUserRoles(selectedUserId);
+      // Registrar auditoría
+      try {
+        await supabase.from("auditoria").insert({
+          empresa_id: empresaId,
+          action: "admin_assign_roles",
+          entity: "user_roles",
+          details: { user_id: selectedUserId, roles: userRoles },
+          actor_id: (await supabase.auth.getUser()).data.user?.id || null,
+        });
+      } catch (auditErr) {
+        console.warn("Audit log failed (assign roles):", auditErr);
+      }
     } catch (err: any) {
       const msg = String(err?.message || "");
       const friendly = /policy|rls|permission|admin/i.test(msg) ? "Sin permisos para asignar" : "No se pudo asignar roles";
@@ -245,7 +255,7 @@ export const UserManagementPanel = () => {
           <h4 className="font-medium">Agregar nuevo usuario</h4>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <Input placeholder="correo@dominio.com" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} />
-            <Input type="password" placeholder="Contraseña (8+ y 1 número)" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} />
+            <Input type="password" placeholder="Contraseña (10+ con mayúscula, minúscula, número y símbolo)" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} />
             <Input placeholder="Nombre completo (opcional)" value={regFullName} onChange={(e) => setRegFullName(e.target.value)} />
             <Select value={regRole} onValueChange={(v) => setRegRole(v as AppRole)}>
               <SelectTrigger>

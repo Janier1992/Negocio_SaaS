@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/newClient";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { Badge } from "@/components/ui/badge";
+import { RequirePermission } from "@/components/auth/RequirePermission";
 
 interface Cliente {
   id: string;
@@ -257,7 +258,8 @@ export default function Clientes() {
   });
 
   return (
-    <div className="space-y-6">
+    <RequirePermission permission="clientes_read">
+      <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold">Clientes</h2>
         <p className="text-muted-foreground">Registro, búsqueda y contacto de clientes.</p>
@@ -388,6 +390,7 @@ export default function Clientes() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </RequirePermission>
   );
 }

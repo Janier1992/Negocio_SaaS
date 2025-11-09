@@ -1,9 +1,53 @@
 import { supabase } from "@/integrations/supabase/newClient";
 
-export type AppRole = "admin" | "empleado" | "viewer";
+export type AppRole =
+  | "admin"
+  | "administrativo"
+  | "ventas"
+  | "inventario"
+  | "finanzas"
+  | "auxiliar"
+  | "empleado"
+  | "viewer";
 
 export const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-export const validatePassword = (p: string) => /^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(p);
+export const validatePassword = (p: string) => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,}$/.test(p);
+
+export async function ensureAdminAccessForEmail(email: string): Promise<boolean> {
+  const target = email.trim().toLowerCase();
+  try {
+    const { data: prof, error } = await supabase
+      .from("profiles")
+      .select("id, empresa_id, rol")
+      .eq("email", target)
+      .maybeSingle();
+    if (error || !prof?.id) return false;
+
+    const userId = prof.id as string;
+    const empresaId = (prof as any).empresa_id as string | null;
+
+    // Asignar rol admin y reemplazar roles existentes
+    try {
+      await supabase.rpc("assign_roles", { _user_id: userId, _roles: ["admin"], _replace: true });
+    } catch {}
+
+    // Actualizar perfil para reflejar 'admin' en checks de UI
+    try {
+      await supabase.from("profiles").update({ rol: "admin" }).eq("id", userId);
+    } catch {}
+
+    // Sembrar permisos base para la empresa y mapear admin a todos
+    if (empresaId) {
+      try {
+        await supabase.rpc("seed_acl_permissions_for_empresa", { _empresa: empresaId });
+      } catch {}
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export async function adminCreateUser(
   email: string,
@@ -13,6 +57,7 @@ export async function adminCreateUser(
   username?: string | null,
   businessName?: string | null,
 ) {
+  const ADMIN_CREATE_USER_FN = import.meta.env.VITE_ADMIN_CREATE_USER_FN || "admin-create-user";
   const payload = {
     email: email.trim().toLowerCase(),
     password,
@@ -26,7 +71,7 @@ export async function adminCreateUser(
     // Incluir explícitamente el token de sesión para autorización
     const { data: sessionRes } = await supabase.auth.getSession();
     const accessToken = sessionRes?.session?.access_token || "";
-    const { data, error } = await supabase.functions.invoke("admin-create-user", {
+    const { data, error } = await supabase.functions.invoke(ADMIN_CREATE_USER_FN, {
       body: payload,
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
     });

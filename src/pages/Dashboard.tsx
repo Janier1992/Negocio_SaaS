@@ -262,13 +262,27 @@ const Dashboard = () => {
       // Alertas activas (y conteo por tipo) usando servicio compartido
       let alertRows: any[] = [];
       try {
-        alertRows = await fetchAlerts({ empresaId, desde, hasta, orderBy: "created_at", orderAsc: false });
+        alertRows = await fetchAlerts({ empresaId, desde, hasta, leida: false, orderBy: "created_at", orderAsc: false });
       } catch (e: any) {
         console.warn("[Dashboard] Error obteniendo alertas:", e?.message || e);
       }
-      const alertasActivas = alertRows.length;
-      const lowCount = alertRows.filter((a: any) => a.tipo === "stock_bajo").length;
-      const criticalCount = alertRows.filter((a: any) => a.tipo === "stock_critico").length;
+      let alertasActivas = alertRows.length;
+      let lowCount = alertRows.filter((a: any) => a.tipo === "stock_bajo").length;
+      let criticalCount = alertRows.filter((a: any) => a.tipo === "stock_critico").length;
+      // Fallback: si no hay filas en alertas, calcula desde productos
+      if (alertasActivas === 0) {
+        lowCount = productos.filter((p: any) => {
+          const stock = Number(p.stock || 0);
+          const min = Number(p.stock_minimo || 0);
+          return min > 0 && stock <= min && stock > Math.floor(min / 2);
+        }).length;
+        criticalCount = productos.filter((p: any) => {
+          const stock = Number(p.stock || 0);
+          const min = Number(p.stock_minimo || 0);
+          return min > 0 && stock <= Math.floor(min / 2);
+        }).length;
+        alertasActivas = lowCount + criticalCount;
+      }
       setLowStockCount(lowCount);
       setCriticalStockCount(criticalCount);
       if (lowCount > prevAlertCounts.current.low) {

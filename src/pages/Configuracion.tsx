@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { UserRolePanel } from "@/components/configuracion/UserRolePanel";
 import { UserManagementPanel } from "@/components/configuracion/UserManagementPanel";
 import { bootstrapEmpresaRpc, bootstrapEmpresaEdge, verifyEmpresaExists } from "@/services/company";
+import { RequirePermission } from "@/components/auth/RequirePermission";
 
 interface Empresa {
   id: string;
@@ -171,7 +172,8 @@ const Configuracion = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <RequirePermission permission="config_view">
+      <div className="space-y-6 animate-fade-in">
       <div>
         <h2 className="text-3xl font-bold text-foreground">Configuración</h2>
         <p className="text-muted-foreground mt-1">Panel de opciones de configuración del sistema</p>
@@ -236,7 +238,9 @@ const Configuracion = () => {
 
       <UserRolePanel />
 
-      <UserManagementPanel />
+      <RequirePermission permission="manage_users">
+        <UserManagementPanel />
+      </RequirePermission>
 
       <Card>
         <CardHeader>
@@ -270,7 +274,8 @@ const Configuracion = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </RequirePermission>
   );
 };
 
