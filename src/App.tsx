@@ -24,7 +24,7 @@ const App = () => (
     <TooltipProvider>
       <ErrorBoundary>
         <Sonner />
-        <BrowserRouter>
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/invitaciones/aceptar" element={<InvitacionesAceptar />} />
