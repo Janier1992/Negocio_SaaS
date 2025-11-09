@@ -239,6 +239,26 @@ npx vitest
 - Sirve `dist/` en tu hosting estático preferido y configura variables `VITE_...` en el entorno del servidor.
 - Para funciones Edge, usa Supabase CLI o dashboard para desplegar y configurar `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`.
 
+### GitHub Pages (MiNegocio-ERP2)
+
+- Sitio: `https://janier1992.github.io/MiNegocio-ERP2/`
+- Workflow: `.github/workflows/pages.yml` ya incluido.
+- En producción, Vite usa `base: "/MiNegocio-ERP2/"` y el enrutador `BrowserRouter` toma `import.meta.env.BASE_URL`.
+
+#### Pasos
+- En el repositorio `MiNegocio-ERP2`, ve a Settings → Pages y selecciona “Build and deploy” con GitHub Actions.
+- Añade secretos en Settings → Secrets and variables → Actions:
+  - `VITE_SUPABASE_URL`
+  - `VITE_SUPABASE_ANON_KEY`
+- El workflow construye y sube `dist/` y copia `404.html` desde `index.html` para SPA.
+- Tras cada push a `main`, el sitio se actualiza en 1–3 minutos.
+
+#### Troubleshooting
+- 404 en rutas internas: confirma que existe `dist/404.html` (lo crea el workflow) y que `base` sea `"/MiNegocio-ERP2/"`.
+- Assets no cargan: verifica que la URL incluya `/MiNegocio-ERP2/` y reconstruye (`npm run build`).
+- Errores de CSP: en producción se permite `style-src 'unsafe-inline'` para compatibilidad con GitHub Pages; los scripts inline siguen bloqueados.
+- Datos no cargan: revisa que los secretos de Supabase estén definidos en el repositorio y que el proyecto de Supabase acepte conexiones desde el sitio.
+
 ### Checklist de publicación (CSP y entorno)
 
 - Build y preview local:
