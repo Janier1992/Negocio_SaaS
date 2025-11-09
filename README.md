@@ -1,5 +1,7 @@
 # Mi_NegocioERP
 
+[![CI](https://github.com/Janier1992/MiNegocio-ERP/actions/workflows/ci.yml/badge.svg)](https://github.com/Janier1992/MiNegocio-ERP/actions/workflows/ci.yml)
+
 Aplicación ERP ligera para PyMEs que integra autenticación, usuarios y roles, inventario, proveedores, clientes, compras, ventas, finanzas, cuentas por pagar, promociones, invitaciones y auditoría, con seguridad basada en RLS de Supabase.
 
 ## Características principales
