@@ -9,8 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { checkAuthConnectivity, getSupabaseEnv } from "@/integrations/supabase/health";
 
-const SITE_URL = import.meta.env.VITE_PUBLIC_SITE_URL || window.location.origin;
+const SITE_URL = import.meta.env.MODE === 'development'
+  ? window.location.origin
+  : (import.meta.env.VITE_PUBLIC_SITE_URL || window.location.origin);
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -30,6 +33,7 @@ export default function Auth() {
   const [newPassword, setNewPassword] = useState("");
   const [newPassword2, setNewPassword2] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
+  const envOk = getSupabaseEnv().isConfigured;
 
   useEffect(() => {
     // Check if user is already logged in
@@ -41,6 +45,23 @@ export default function Auth() {
     };
     checkUser();
   }, [navigate, redirectPath]);
+
+  useEffect(() => {
+    // Health check temprano para detectar problemas de conexión/Auth
+    const runHealth = async () => {
+      const env = getSupabaseEnv();
+      if (!env.isConfigured) {
+        toast.error("Faltan variables de entorno: VITE_SUPABASE_URL y/o VITE_SUPABASE_ANON_KEY");
+        return;
+      }
+      const health = await checkAuthConnectivity();
+      if (!health.ok) {
+        const reason = health.error || `status=${health.status ?? 'n/a'}`;
+        toast.error(`No se pudo conectar al servicio de autenticación (${reason})`);
+      }
+    };
+    void runHealth();
+  }, []);
 
   useEffect(() => {
     // Detectar flujo de recuperación desde el enlace de correo
@@ -215,7 +236,9 @@ export default function Auth() {
       } else if (/already|exist/i.test(low)) {
         toast.error("El correo ya está registrado. Prueba con otro correo o inicia sesión.");
       } else if (/network|failed to fetch|err_failed/i.test(low)) {
-        toast.error("No se pudo conectar al servicio de autenticación. Revisa tu conexión o intenta nuevamente.");
+        const env = getSupabaseEnv();
+        const hint = env.isConfigured ? "Revisa conectividad o CSP" : "Faltan VITE_SUPABASE_URL/ANON_KEY";
+        toast.error(`No se pudo conectar al servicio de autenticación. ${hint}.`);
       } else {
         toast.error(msg || "Ocurrió un error");
       }
@@ -369,7 +392,7 @@ export default function Auth() {
             <Button 
               type="submit" 
               className="w-full"
-              disabled={isLoading || (!isLogin && (!validateEmail(email) || !validatePassword(password)))}
+              disabled={isLoading || !envOk || (!isLogin && (!validateEmail(email) || !validatePassword(password)))}
             >
               {isLoading ? (
                 <>
