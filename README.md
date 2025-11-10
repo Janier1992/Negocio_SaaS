@@ -207,6 +207,34 @@ npm run depcheck
   - SMTP no configurado o sin permisos → revisa credenciales y proveedor.
   - Edge no disponible durante registro → la app cae en `signUp` estándar y muestra estado de confirmación pendiente.
 
+## Diagnóstico de autenticación y conectividad
+
+Para diagnosticar el mensaje "No se pudo conectar al servicio de autenticación" y problemas de login/registro con Supabase Auth:
+
+- Verifica variables de entorno:
+  - `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` deben estar presentes y válidos.
+  - Reinicia Vite tras cambios en `.env`.
+- Prueba endpoint público de Auth:
+  - `GET ${VITE_SUPABASE_URL}/auth/v1/info` debe responder `200`.
+  - En Windows/PowerShell:
+    - `Invoke-WebRequest "$env:VITE_SUPABASE_URL/auth/v1/info" -UseBasicParsing | Select-Object StatusCode`
+- Revisa CSP y orígenes permitidos:
+  - En producción, `connect-src` debe permitir `self` y `*.supabase.co`.
+  - Si ves errores de CSP, ajusta `vite.config.ts` para añadir el origen requerido.
+- URLs de redirección (Auth → URL Configuration):
+  - Añade `http://localhost:8080` en Additional Redirect URLs para desarrollo.
+  - Configura `VITE_PUBLIC_SITE_URL` para que `emailRedirectTo` apunte correctamente.
+- Logs y manejo de errores:
+  - La página `src/pages/Auth.tsx` ahora realiza un health check temprano y muestra toasts con pistas (falta de env, fallo de red/CSP).
+  - Abre DevTools (F12) y revisa la consola y la red para detalles del fallo.
+- Entornos:
+  - Desarrollo: `npm run dev` y abre `/auth`.
+  - Producción local: `npm run build && npm run preview` y abre `/ERP_Negocios/auth` (ajusta `base` si cambias el repo/pages).
+
+Archivo de soporte:
+
+- `src/integrations/supabase/health.ts`: helpers `getSupabaseEnv()` y `checkAuthConnectivity()` para validar configuración y alcance de Supabase Auth.
+
 ### Verificación
 - Inicia `npm run dev` y abre `http://localhost:8080/auth`.
 - Registra con un correo nuevo; si queda pendiente, usa “Reenviar confirmación”.
@@ -239,14 +267,14 @@ npx vitest
 - Sirve `dist/` en tu hosting estático preferido y configura variables `VITE_...` en el entorno del servidor.
 - Para funciones Edge, usa Supabase CLI o dashboard para desplegar y configurar `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`.
 
-### GitHub Pages (MiNegocio-ERP2)
+### GitHub Pages (ERP_Negocios)
 
-- Sitio: `https://janier1992.github.io/MiNegocio-ERP2/`
+- Sitio: `https://janier1992.github.io/ERP_Negocios/`
 - Workflow: `.github/workflows/pages.yml` ya incluido.
-- En producción, Vite usa `base: "/MiNegocio-ERP2/"` y el enrutador `BrowserRouter` toma `import.meta.env.BASE_URL`.
+- En producción, Vite usa `base: "/ERP_Negocios/"` y el enrutador `BrowserRouter` toma `import.meta.env.BASE_URL`.
 
 #### Pasos
-- En el repositorio `MiNegocio-ERP2`, ve a Settings → Pages y selecciona “Build and deploy” con GitHub Actions.
+- En el repositorio `ERP_Negocios`, ve a Settings → Pages y selecciona “Build and deploy” con GitHub Actions.
 - Añade secretos en Settings → Secrets and variables → Actions:
   - `VITE_SUPABASE_URL`
   - `VITE_SUPABASE_ANON_KEY`
@@ -254,8 +282,8 @@ npx vitest
 - Tras cada push a `main`, el sitio se actualiza en 1–3 minutos.
 
 #### Troubleshooting
-- 404 en rutas internas: confirma que existe `dist/404.html` (lo crea el workflow) y que `base` sea `"/MiNegocio-ERP2/"`.
-- Assets no cargan: verifica que la URL incluya `/MiNegocio-ERP2/` y reconstruye (`npm run build`).
+- 404 en rutas internas: confirma que existe `dist/404.html` (lo crea el workflow) y que `base` sea `"/ERP_Negocios/"`.
+- Assets no cargan: verifica que la URL incluya `/ERP_Negocios/` y reconstruye (`npm run build`).
 - Errores de CSP: en producción se permite `style-src 'unsafe-inline'` para compatibilidad con GitHub Pages; los scripts inline siguen bloqueados.
 - Datos no cargan: revisa que los secretos de Supabase estén definidos en el repositorio y que el proyecto de Supabase acepte conexiones desde el sitio.
 
@@ -276,7 +304,7 @@ npx vitest
   - Si agregas nuevos dominios (APIs, CDNs), inclúyelos en `connect-src`, `img-src` o `script-src` en `vite.config.ts` (sólo lo necesario).
   - Evita `'unsafe-inline'`/`'unsafe-eval'` en producción; mueve cualquier script/estilo inline a archivos.
 - Hosting estático:
-  - Para GitHub Pages, confirma `base: "/MiNegocio-ERP/"` y la redirección en `src/main.tsx`.
+  - Para GitHub Pages, confirma `base: "/ERP_Negocios/"` y la redirección en `src/main.tsx`.
 - Pruebas funcionales rápidas:
   - Login/logout, navegación por páginas principales, exportar e importar Excel.
   - Validar que Supabase conecte (sin errores de `connect-src`).
@@ -316,3 +344,5 @@ npx vitest
 
 - Evita almacenar claves sensibles (`SERVICE_ROLE_KEY`) en el frontend.
 - La lógica de UPSERT en CxP usa `ON CONFLICT (compra_id)`: si deseas múltiples CxP por compra, ajusta esa condición y la restricción única.
+#   E R P _ N e g o c i o s P y m e s  
+ 
