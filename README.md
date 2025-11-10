@@ -229,7 +229,7 @@ Para diagnosticar el mensaje "No se pudo conectar al servicio de autenticación"
   - Abre DevTools (F12) y revisa la consola y la red para detalles del fallo.
 - Entornos:
   - Desarrollo: `npm run dev` y abre `/auth`.
-  - Producción local: `npm run build && npm run preview` y abre `/ERP_Negocios/auth` (ajusta `base` si cambias el repo/pages).
+  - Producción local: `npm run build && npm run preview` y abre `/MiNegocioPymes/auth` (ajusta `base` si cambias el repo/pages).
 
 Archivo de soporte:
 
@@ -267,14 +267,14 @@ npx vitest
 - Sirve `dist/` en tu hosting estático preferido y configura variables `VITE_...` en el entorno del servidor.
 - Para funciones Edge, usa Supabase CLI o dashboard para desplegar y configurar `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`.
 
-### GitHub Pages (ERP_Negocios)
+### GitHub Pages (MiNegocioPymes)
 
-- Sitio: `https://janier1992.github.io/ERP_Negocios/`
+- Sitio: `https://janier1992.github.io/MiNegocioPymes/`
 - Workflow: `.github/workflows/pages.yml` ya incluido.
-- En producción, Vite usa `base: "/ERP_Negocios/"` y el enrutador `BrowserRouter` toma `import.meta.env.BASE_URL`.
+- En producción, Vite usa `base: "/MiNegocioPymes/"` y el enrutador `BrowserRouter` toma `import.meta.env.BASE_URL`.
 
 #### Pasos
-- En el repositorio `ERP_Negocios`, ve a Settings → Pages y selecciona “Build and deploy” con GitHub Actions.
+- En el repositorio `MiNegocioPymes`, ve a Settings → Pages y selecciona “Build and deploy” con GitHub Actions.
 - Añade secretos en Settings → Secrets and variables → Actions:
   - `VITE_SUPABASE_URL`
   - `VITE_SUPABASE_ANON_KEY`
@@ -282,8 +282,8 @@ npx vitest
 - Tras cada push a `main`, el sitio se actualiza en 1–3 minutos.
 
 #### Troubleshooting
-- 404 en rutas internas: confirma que existe `dist/404.html` (lo crea el workflow) y que `base` sea `"/ERP_Negocios/"`.
-- Assets no cargan: verifica que la URL incluya `/ERP_Negocios/` y reconstruye (`npm run build`).
+- 404 en rutas internas: confirma que existe `dist/404.html` (lo crea el workflow) y que `base` sea `"/MiNegocioPymes/"`.
+- Assets no cargan: verifica que la URL incluya `/MiNegocioPymes/` y reconstruye (`npm run build`).
 - Errores de CSP: en producción se permite `style-src 'unsafe-inline'` para compatibilidad con GitHub Pages; los scripts inline siguen bloqueados.
 - Datos no cargan: revisa que los secretos de Supabase estén definidos en el repositorio y que el proyecto de Supabase acepte conexiones desde el sitio.
 
@@ -304,7 +304,7 @@ npx vitest
   - Si agregas nuevos dominios (APIs, CDNs), inclúyelos en `connect-src`, `img-src` o `script-src` en `vite.config.ts` (sólo lo necesario).
   - Evita `'unsafe-inline'`/`'unsafe-eval'` en producción; mueve cualquier script/estilo inline a archivos.
 - Hosting estático:
-  - Para GitHub Pages, confirma `base: "/ERP_Negocios/"` y la redirección en `src/main.tsx`.
+  - Para GitHub Pages, confirma `base: "/MiNegocioPymes/"` y la redirección en `src/main.tsx`.
 - Pruebas funcionales rápidas:
   - Login/logout, navegación por páginas principales, exportar e importar Excel.
   - Validar que Supabase conecte (sin errores de `connect-src`).
@@ -344,5 +344,6 @@ npx vitest
 
 - Evita almacenar claves sensibles (`SERVICE_ROLE_KEY`) en el frontend.
 - La lógica de UPSERT en CxP usa `ON CONFLICT (compra_id)`: si deseas múltiples CxP por compra, ajusta esa condición y la restricción única.
-#   E R P _ N e g o c i o s P y m e s  
+#   E R P _ N e g o c i o s P y m e s 
+ 
  

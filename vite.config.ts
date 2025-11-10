@@ -9,9 +9,9 @@ export default defineConfig(({ mode }) => {
   const prodCsp = "default-src 'self'; script-src 'self' https://*.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.supabase.co; connect-src 'self' https://*.supabase.co; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests";
 
   return ({
-  // Para despliegue en GitHub Pages (repositorio ERP_Negocios)
-  // En producción, asegura rutas correctas: janier1992.github.io/ERP_Negocios/
-  base: mode === "production" ? "/ERP_Negocios/" : "/",
+  // Para despliegue en GitHub Pages (repositorio MiNegocioPymes)
+  // En producción, asegura rutas correctas: janier1992.github.io/MiNegocioPymes/
+  base: mode === "production" ? "/MiNegocioPymes/" : "/",
   server: {
     host: true,
     port: 8080,
