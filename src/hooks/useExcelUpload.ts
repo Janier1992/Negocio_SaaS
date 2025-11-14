@@ -151,10 +151,13 @@ export const useExcelUpload = () => {
       // Obtener productos existentes
       const { data: existingProductos } = await supabase
         .from("productos")
-        .select("codigo")
+        .select("id, codigo")
         .eq("empresa_id", empresaId);
 
       const existingCodes = new Set(existingProductos?.map(p => p.codigo.toLowerCase()) || []);
+      const existingCodeToId = new Map<string, string>(
+        (existingProductos || []).map((p: any) => [String(p.codigo).toLowerCase(), String(p.id)])
+      );
 
       // Detectar categorías y proveedores faltantes y crearlos antes de insertar productos
       const normalize = (v: any) => sanitizeCell(v || "").toLowerCase();
@@ -230,16 +233,53 @@ export const useExcelUpload = () => {
         })
         .filter(p => p !== null);
 
-      if (newProductos.length === 0) {
-        throw new Error("Todos los productos ya existen o tienen códigos inválidos");
+      // Preparar actualizaciones para productos existentes (mismo código)
+      const updates = (jsonData as any[])
+        .map((row: any) => {
+          const codigo = sanitizeCell(row.codigo || "");
+          if (!codigo) return null;
+          const codeLower = codigo.toLowerCase();
+          const id = existingCodeToId.get(codeLower);
+          if (!id) return null;
+          return {
+            id,
+            payload: {
+              nombre: sanitizeCell(row.nombre || ""),
+              descripcion: row.descripcion ? sanitizeCell(row.descripcion) : null,
+              categoria_id: row.categoria ? categoriaMap.get(normalize(row.categoria)) || null : null,
+              proveedor_id: row.proveedor ? proveedorMap.get(normalize(row.proveedor)) || null : null,
+              precio: parseDecimal(row.precio, 0),
+              stock: parseInteger(row.stock, 0),
+              stock_minimo: parseInteger(row.stock_minimo, 0),
+            },
+          };
+        })
+        .filter(Boolean) as { id: string; payload: any }[];
+
+      // Insertar nuevos
+      if (newProductos.length > 0) {
+        const { error } = await supabase.from("productos").insert(newProductos);
+        if (error) throw error;
       }
 
-      const { error } = await supabase.from("productos").insert(newProductos);
-      if (error) throw error;
+      // Actualizar existentes
+      let updatedCount = 0;
+      for (const u of updates) {
+        const { error: updErr } = await supabase
+          .from("productos")
+          .update(u.payload)
+          .eq("id", u.id)
+          .eq("empresa_id", empresaId);
+        if (!updErr) updatedCount += 1;
+      }
+
+      if (newProductos.length === 0 && updatedCount === 0) {
+        throw new Error("Todos los productos tienen códigos inválidos o no se pudo actualizar");
+      }
 
       return {
         inserted: newProductos.length,
-        duplicates: jsonData.length - newProductos.length,
+        duplicates: updates.length, // reutilizamos el campo para indicar actualizados
       };
     } finally {
       setLoading(false);
