@@ -55,7 +55,7 @@ const Inventario = () => {
       const [productosRes, categoriasRes, proveedoresRes] = await Promise.all([
         supabase
           .from("productos")
-          .select("*, categorias(nombre), proveedores(nombre)")
+          .select("id,codigo,nombre,descripcion,precio,stock,stock_minimo,categoria_id,proveedor_id,categorias(nombre),proveedores(nombre)")
           .eq("empresa_id", empresaId)
           .order("created_at", { ascending: false }),
         supabase
@@ -377,7 +377,27 @@ const columns: Column<any>[] = [
   { key: "categoria", header: "Categoría", sortable: true, filterable: true, accessor: (p) => p.categorias?.nombre ?? "Sin categoría" },
   { key: "stock", header: "Stock", sortable: true, filterable: true, align: "right" },
   { key: "stock_minimo", header: "Mínimo", sortable: true, filterable: true, align: "right" },
-  { key: "precio", header: "Precio", sortable: true, filterable: true, align: "right", render: (p) => `$${Number(p.precio).toFixed(2)}` },
+  // Formateo de precios consistente y manejo de nulos
+  { 
+    key: "precio", 
+    header: "Precio", 
+    sortable: true, 
+    filterable: true, 
+    align: "right",
+    accessor: (p) => Number(p.precio ?? 0),
+    render: (p) => {
+      const val = p.precio;
+      if (val == null) return <span className="text-muted-foreground">—</span>;
+      const num = Number(val);
+      if (!Number.isFinite(num)) return <span className="text-muted-foreground">—</span>;
+      try {
+        const fmt = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 2 });
+        return fmt.format(num);
+      } catch {
+        return `$${num.toFixed(2)}`;
+      }
+    }
+  },
   { 
     key: "estado", 
     header: "Estado", 
