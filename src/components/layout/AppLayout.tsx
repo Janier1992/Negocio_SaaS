@@ -1,6 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { AppSidebar } from "./AppSidebar";
+import { MobileRail } from "./MobileRail";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/newClient";
@@ -146,8 +147,10 @@ export const AppLayout = () => {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
+        {/* Rail de iconos fija en móviles */}
+        <MobileRail />
         <AppSidebar />
-        <div className="flex-1 flex flex-col w-full">
+        <div className="flex-1 flex flex-col w-full pl-14 md:pl-0">
           <header className="h-16 border-b border-border bg-card flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-10">
             <div className="flex items-center gap-2">
               {/* Trigger visible solo en móviles y tablets */}
