@@ -26,6 +26,7 @@ import { supabase } from "@/integrations/supabase/newClient";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { useIsMobileOrTablet } from "@/hooks/use-mobile";
 
 const menuItems = [
   {
@@ -81,6 +82,7 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const isCollapsed = state === "collapsed";
   const isAdmin = (profile?.rol || "").toLowerCase() === "admin";
+  const isCompactViewport = useIsMobileOrTablet();
 
   const getNavClasses = (isActive: boolean) =>
     isActive
@@ -88,9 +90,11 @@ export function AppSidebar() {
       : "hover:bg-sidebar-accent/50";
 
   const handleAfterNavigate = () => {
-    // Colapsar en escritorio y cerrar en móvil
-    try { setOpen(false); } catch {}
-    try { setOpenMobile(false); } catch {}
+    // Interactivo solo en móviles y tablets
+    if (isCompactViewport) {
+      try { setOpen(false); } catch {}
+      try { setOpenMobile(false); } catch {}
+    }
   };
 
   const handleLogout = async () => {
@@ -140,8 +144,8 @@ export function AppSidebar() {
 
   return (
     <Sidebar
-      className={isCollapsed ? "w-14" : "w-64"}
-      collapsible="icon"
+      className={isCompactViewport ? (isCollapsed ? "w-14" : "w-64") : "w-64"}
+      collapsible={isCompactViewport ? "icon" : "none"}
     >
       <SidebarContent>
         <div className="p-4">

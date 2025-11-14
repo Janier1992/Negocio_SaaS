@@ -150,7 +150,8 @@ export const AppLayout = () => {
         <div className="flex-1 flex flex-col w-full">
           <header className="h-16 border-b border-border bg-card flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-10">
             <div className="flex items-center gap-2">
-              <SidebarTrigger className="mr-2" />
+              {/* Trigger visible solo en móviles y tablets */}
+              <SidebarTrigger className="mr-2 lg:hidden" />
               <h1 className="text-xl font-semibold text-foreground truncate">{empresaNombre}</h1>
             </div>
             <div className="flex items-center gap-2">
