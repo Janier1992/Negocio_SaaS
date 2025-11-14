@@ -21,6 +21,62 @@ export const useExcelUpload = () => {
     return s.slice(0, 512);
   };
 
+  // Parsea números provenientes de Excel con posibles separadores y símbolos
+  const parseDecimal = (val: any, fallback = 0) => {
+    if (val == null || val === "") return fallback;
+    if (typeof val === "number") {
+      return isFinite(val) ? val : fallback;
+    }
+    let s = String(val).trim();
+    // Quitar símbolos no numéricos (moneda, espacios, etc.), dejando dígitos, signos y separadores
+    s = s.replace(/[^0-9,\.\-]/g, "");
+    if (!s) return fallback;
+    const lastComma = s.lastIndexOf(",");
+    const lastDot = s.lastIndexOf(".");
+    // Si hay ambos separadores, asumimos que el último es decimal
+    if (lastComma !== -1 && lastDot !== -1) {
+      const lastSep = Math.max(lastComma, lastDot);
+      const decimalIsComma = lastSep === lastComma;
+      // eliminar el otro separador (miles)
+      s = s.replace(decimalIsComma ? /\./g : /,/g, "");
+      // normalizar decimal a punto
+      s = s.replace(/,/g, ".");
+      const n = Number(s);
+      return isFinite(n) ? n : fallback;
+    }
+    // Solo coma presente
+    if (lastComma !== -1 && lastDot === -1) {
+      const digitsAfter = s.length - lastComma - 1;
+      if (digitsAfter === 2 || digitsAfter === 1) {
+        s = s.replace(/,/g, ".");
+      } else {
+        // probablemente separador de miles
+        s = s.replace(/,/g, "");
+      }
+      const n = Number(s);
+      return isFinite(n) ? n : fallback;
+    }
+    // Solo punto presente: usar tal cual, pero si hay patrones de miles tipo 1.234
+    if (lastDot !== -1 && lastComma === -1) {
+      const digitsAfter = s.length - lastDot - 1;
+      // Si hay más de 2 dígitos tras el punto, probablemente es miles => eliminar puntos
+      if (digitsAfter > 2) {
+        s = s.replace(/\./g, "");
+      }
+      const n = Number(s);
+      return isFinite(n) ? n : fallback;
+    }
+    // Sin separadores: parse directo
+    const n = Number(s);
+    return isFinite(n) ? n : fallback;
+  };
+
+  const parseInteger = (val: any, fallback = 0) => {
+    const n = parseDecimal(val, fallback);
+    if (!isFinite(n)) return fallback;
+    return Math.trunc(n);
+  };
+
   const uploadProveedores = async (file: File) => {
     if (!empresaId) throw new Error("No se encontró empresa asociada");
     
@@ -166,9 +222,9 @@ export const useExcelUpload = () => {
             descripcion: row.descripcion ? sanitizeCell(row.descripcion) : null,
             categoria_id: row.categoria ? categoriaMap.get(normalize(row.categoria)) || null : null,
             proveedor_id: row.proveedor ? proveedorMap.get(normalize(row.proveedor)) || null : null,
-            precio: Number(row.precio) || 0,
-            stock: parseInt(String(row.stock || 0)),
-            stock_minimo: parseInt(String(row.stock_minimo || 0)),
+            precio: parseDecimal(row.precio, 0),
+            stock: parseInteger(row.stock, 0),
+            stock_minimo: parseInteger(row.stock_minimo, 0),
             empresa_id: empresaId,
           };
         })
