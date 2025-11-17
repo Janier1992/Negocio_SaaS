@@ -37,10 +37,14 @@ export async function ensureAdminAccessForEmail(email: string): Promise<boolean>
     } catch {}
 
     // Sembrar permisos base para la empresa y mapear admin a todos
-    if (empresaId) {
+    // Esta operación puede no estar disponible en todos los entornos (404 por permisos/ausencia).
+    // Se habilita condicionalmente vía variable de entorno para evitar errores en consola.
+    if (empresaId && String(import.meta.env.VITE_ENABLE_ACL_SEED_RPC).toLowerCase() === "true") {
       try {
         await supabase.rpc("seed_acl_permissions_for_empresa", { _empresa: empresaId });
-      } catch {}
+      } catch (err) {
+        console.warn("[ACL] seed_acl_permissions_for_empresa no disponible:", err);
+      }
     }
 
     return true;

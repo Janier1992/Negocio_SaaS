@@ -6,10 +6,14 @@
 
 ## Correcciones aplicadas
 - `src/hooks/useExcelUpload.ts`: ahora actualiza productos existentes por `codigo`, aplicando parseo robusto para `precio`, `stock` y `stock_minimo` (acepta formatos con `$`, puntos de miles y comas decimales).
-- `src/pages/Inventario.tsx`: la consulta a Supabase especifica explícitamente `precio` y el render de la columna aplica `Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' })` con manejo de nulos.
+- `src/pages/Inventario.tsx`: la consulta a Supabase especifica explícitamente `precio` y se agregó logging de integridad de datos (conteo de precios nulos/invalidos y en cero). El render de la columna usa `formatCurrencyCOP` para formateo consistente y manejo de nulos.
+- `src/lib/format.ts`: util centralizado `formatCurrencyCOP(value)` con `Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' })` y fallback.
+- `src/lib/logger.ts`: util de logging simple para registrar eventos, advertencias y errores del módulo Inventario.
 
 ## Validaciones y pruebas
-- Prueba unitaria `tests/inventario_upload.spec.ts`:
+- Pruebas unitarias:
+  - `tests/inventario_upload.spec.ts`: mock de Supabase/XLSX. Verifica parseo y actualización de precios.
+  - `tests/format_price.spec.ts`: valida visualización/format de precios (números, cadenas, nulos y extremos).
   - Mockea Supabase y XLSX.
   - Verifica que `uploadProductos` parsea `"$ 1.200"`, `"$ 2.500"`, `"$ 8.500"` y actualiza los precios como números `1200`, `2500`, `8500`.
   - Confirma inserción de productos nuevos y actualización de existentes.
@@ -18,7 +22,8 @@
 1. Subir el Excel con los precios reales.
 2. Abrir Inventario y comprobar que la columna Precio muestra valores correctos (COP) y no `0,00`.
 3. Si algún precio permanece en `0`, revisar que el Excel tenga valores válidos y que el `codigo` del producto coincida exactamente con el existente en BD.
+4. Revisar la consola del navegador: se registran totales de productos cargados y conteos de precios nulos/invalidos y en cero para diagnóstico rápido.
 
 ## Siguientes mejoras sugeridas
 - Ajustar mensajes del diálogo de carga para indicar "actualizados" en lugar de "duplicados".
-- Centralizar utilidades de formateo de moneda si se necesita reutilización en más pantallas.
+ - Reutilizar `formatCurrencyCOP` en Ventas y Finanzas para consistencia.

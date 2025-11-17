@@ -1,38 +1,19 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/newClient";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
+import { createLogger } from "@/lib/logger";
 import { fetchAlerts, subscribeAlerts } from "@/services/alerts";
+import { NotificationsContext, NotificationItem, NotificationsContextType } from "./NotificationsContext";
 
-export type NotificationItem = {
-  id: string;
-  message: string;
-  type: "info" | "stock_bajo" | "stock_critico" | string;
-  createdAt: number;
-  read?: boolean;
-};
-
-type NotificationsContextType = {
-  notifications: NotificationItem[];
-  unreadCount: number;
-  addNotification: (n: Omit<NotificationItem, "id" | "createdAt">) => void;
-  markAllRead: () => void;
-  markRead: (id: string) => void;
-  removeNotification: (id: string) => void;
-  clearNotifications: () => void;
-};
-
-const NotificationsContext = createContext<NotificationsContextType | null>(null);
-
-export function useNotifications() {
-  const ctx = useContext(NotificationsContext);
-  if (!ctx) throw new Error("useNotifications must be used within NotificationsProvider");
-  return ctx;
-}
+// Tipos y contexto movidos a NotificationsContext.ts
 
 export const NotificationsProvider: React.FC<React.PropsWithChildren<{ empresaId?: string | null }>> = ({ children, empresaId }) => {
+  const log = createLogger("Notifications");
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const channelProductsRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  // Acumulador para agrupar toasts de stock y evitar spam cuando hay múltiples eventos simultáneos
+  const batchRef = useRef<{ low: string[]; critical: string[]; timer: any }>({ low: [], critical: [], timer: null });
 
   const buildProductStockNotifications = async (empresaId: string) => {
     const mapped: NotificationItem[] = [];
@@ -79,7 +60,7 @@ export const NotificationsProvider: React.FC<React.PropsWithChildren<{ empresaId
           .eq("leida", false);
       }
     } catch (err) {
-      console.warn("[Notifications] Error marcando alertas como leídas:", err);
+      log.warn("Error marcando alertas como leídas", err);
     }
   };
 
@@ -92,7 +73,7 @@ export const NotificationsProvider: React.FC<React.PropsWithChildren<{ empresaId
         await supabase.from("alertas").update({ leida: true }).eq("id", id);
       }
     } catch (err) {
-      console.warn("[Notifications] Error marcando lectura de alerta:", err);
+      log.warn("Error marcando lectura de alerta", err);
     }
   };
 
@@ -125,7 +106,7 @@ export const NotificationsProvider: React.FC<React.PropsWithChildren<{ empresaId
         }
         setNotifications(mapped);
       } catch (err) {
-        console.warn("[Notifications] Error cargando alertas:", err);
+        log.warn("Error cargando alertas", err);
         // Fallback ante error de red o API: calcular desde productos
         try {
           if (empresaId) {
@@ -133,7 +114,7 @@ export const NotificationsProvider: React.FC<React.PropsWithChildren<{ empresaId
             setNotifications(mapped);
           }
         } catch (e) {
-          console.warn("[Notifications] Fallback desde productos también falló:", e);
+          log.warn("Fallback desde productos también falló", e);
         }
       }
     };
@@ -156,13 +137,13 @@ export const NotificationsProvider: React.FC<React.PropsWithChildren<{ empresaId
           })) as NotificationItem[];
           setNotifications(mapped);
         } catch (err) {
-          console.warn("[Notifications] Error sincronizando alertas:", err);
+          log.warn("Error sincronizando alertas", err);
           // Si falla la sync, intenta reconstruir desde productos
           try {
             const mapped = await buildProductStockNotifications(empresaId);
             setNotifications(mapped);
           } catch (e) {
-            console.warn("[Notifications] No se pudo reconstruir notificaciones desde productos:", e);
+            log.warn("No se pudo reconstruir notificaciones desde productos", e);
           }
         }
       });
@@ -172,7 +153,7 @@ export const NotificationsProvider: React.FC<React.PropsWithChildren<{ empresaId
         channelRef.current = null;
       };
     } catch (err) {
-      console.warn("[Notifications] No se pudo suscribir a cambios de alertas:", err);
+      log.warn("No se pudo suscribir a cambios de alertas", err);
     }
   }, [empresaId]);
 
@@ -207,7 +188,7 @@ export const NotificationsProvider: React.FC<React.PropsWithChildren<{ empresaId
               setNotifications(synthetic);
             }
           } catch (err) {
-            console.warn("[Notifications] Error recalculando notificaciones desde productos:", err);
+            log.warn("Error recalculando notificaciones desde productos", err);
           }
         })
         .subscribe();
@@ -217,7 +198,7 @@ export const NotificationsProvider: React.FC<React.PropsWithChildren<{ empresaId
         channelProductsRef.current = null;
       };
     } catch (err) {
-      console.warn("[Notifications] No se pudo suscribir a cambios de productos:", err);
+      log.warn("No se pudo suscribir a cambios de productos", err);
     }
   }, [empresaId]);
 
@@ -235,10 +216,27 @@ export const NotificationsProvider: React.FC<React.PropsWithChildren<{ empresaId
           if (min > 0) {
             if (stock <= Math.floor(min / 2)) {
               addNotification({ type: "stock_critico", message: `Stock crítico en ${nombre}` });
-              toast.error(`Stock crítico en ${nombre}`);
+              batchRef.current.critical.push(String(nombre));
             } else if (stock <= min) {
               addNotification({ type: "stock_bajo", message: `Stock bajo en ${nombre}` });
-              toast.warning(`Stock bajo en ${nombre}`);
+              batchRef.current.low.push(String(nombre));
+            }
+            // Disparar toasts agrupados con un pequeño debounce para evitar múltiples toasts seguidos
+            if (!batchRef.current.timer) {
+              batchRef.current.timer = setTimeout(() => {
+                try {
+                  const critCount = batchRef.current.critical.length;
+                  const lowCount = batchRef.current.low.length;
+                  if (critCount > 0) {
+                    toast.error(`Stock crítico: ${critCount} producto(s) afectados`);
+                  }
+                  if (lowCount > 0) {
+                    toast.warning(`Stock bajo: ${lowCount} producto(s) afectados`);
+                  }
+                } finally {
+                  batchRef.current = { low: [], critical: [], timer: null };
+                }
+              }, 400);
             }
           }
         })

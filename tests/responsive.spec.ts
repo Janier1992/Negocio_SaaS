@@ -34,6 +34,21 @@ for (const vp of viewports) {
       await expect(theme).toBeVisible();
     });
 
+    test('Vista móvil: icono del menú lateral no existe (<768px)', async ({ page }) => {
+      await page.goto('http://localhost:8080/');
+      if (vp.width < 768) {
+        const sidebarTrigger = page.locator('[data-sidebar="trigger"]');
+        await expect(sidebarTrigger).toHaveCount(0);
+        // La navegación inferior debe estar presente en móvil
+        const bottomNav = page.getByRole('navigation', { name: 'Navegación inferior móvil' });
+        await expect(bottomNav).toBeVisible();
+      } else {
+        // En no-móvil, el trigger puede existir
+        const sidebarTrigger = page.locator('[data-sidebar="trigger"]');
+        await expect(sidebarTrigger.count()).resolves.toBeGreaterThanOrEqual(1);
+      }
+    });
+
     test('Tabla/lista: información completa legible y scroll vertical en móviles', async ({ page }) => {
       await page.goto('http://localhost:8080/ventas');
       // Wrapper del Table genera scroll vertical en móviles

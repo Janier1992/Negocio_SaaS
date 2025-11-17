@@ -13,7 +13,8 @@ if (import.meta.env.PROD) {
 
 // Registro de Service Worker para PWA (sólo producción)
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
-  const swUrl = new URL("sw.js", import.meta.env.BASE_URL).toString();
+  const basePath = (import.meta.env.BASE_URL || "/").replace(/\/+$/, "");
+  const swUrl = `${basePath}/sw.js`;
   navigator.serviceWorker
     .register(swUrl)
     .then((registration) => {

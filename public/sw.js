@@ -1,7 +1,7 @@
-const CACHE_NAME = "mnp-cache-v2";
+const CACHE_NAME = "mnp-cache-v3";
 const BASE = "/MiNegocioPymes/";
 const INDEX = `${BASE}index.html`;
-const SHELL = [INDEX, `${BASE}favicon.svg`];
+const SHELL = [INDEX, `${BASE}favicon.svg`, `${BASE}manifest.json`];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -34,24 +34,45 @@ self.addEventListener("fetch", (event) => {
 
   // Navegación SPA: network-first con fallback a INDEX offline
   if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request).catch(() => caches.match(INDEX))
-    );
+    event.respondWith((async () => {
+      // Network-first con timeout corto y fallback a INDEX offline
+      const timeoutMs = 4000;
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const resp = await fetch(request, { signal: controller.signal });
+        clearTimeout(id);
+        return resp;
+      } catch (e) {
+        clearTimeout(id);
+        const cached = await caches.match(INDEX);
+        return cached || Response.error();
+      }
+    })());
     return;
   }
 
   // Assets propios: cache-first (mejora rendimiento). No cachear APIs externas.
   if (sameOrigin && (url.pathname.startsWith(`${BASE}assets/`) || url.pathname === `${BASE}favicon.svg`)) {
-    event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((resp) => {
+    event.respondWith((async () => {
+      const cached = await caches.match(request);
+      if (cached) {
+        // Stale-While-Revalidate: actualizar en segundo plano
+        fetch(request).then((resp) => {
           const clone = resp.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          return resp;
-        });
-      })
-    );
+        }).catch(() => {});
+        return cached;
+      }
+      try {
+        const resp = await fetch(request);
+        const clone = resp.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        return resp;
+      } catch (e) {
+        return Response.error();
+      }
+    })());
     return;
   }
 

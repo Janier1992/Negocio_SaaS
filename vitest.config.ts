@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['tests/inventario_upload.spec.ts'],
+    include: ['tests/**/*.spec.ts'],
   },
   resolve: {
     alias: {

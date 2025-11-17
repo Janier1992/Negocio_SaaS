@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manual de Usuario PWA</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 2rem; line-height: 1.6; }
+      h1, h2 { color: #0ea5e9; }
+      code { background: #f3f4f6; padding: 2px 4px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <h1>Manual de Usuario PWA</h1>
+    <p>Guía de instalación y uso de la versión PWA del sistema ERP.</p>
+    <h2>Instalación</h2>
+    <ul>
+      <li>Android (Chrome): Menú ⋮ → «Añadir a la pantalla principal».</li>
+      <li>iOS (Safari): Compartir → «Añadir a pantalla de inicio».</li>
+      <li>Desktop (Chrome/Edge): Icono en barra de direcciones → «Instalar».</li>
+    </ul>
+    <h2>Uso Offline</h2>
+    <ul>
+      <li>Navegación y assets estáticos disponibles sin conexión.</li>
+      <li>Operaciones que requieran Supabase/API no funcionan offline.</li>
+    </ul>
+    <h2>Actualizaciones</h2>
+    <p>El Service Worker verifica nuevas versiones y la pestaña se recarga automáticamente al activarse.</p>
+    <h2>Solución de Problemas</h2>
+    <ul>
+      <li>Pantalla en blanco: Forzar recarga (<code>Ctrl + F5</code>) o limpiar caché.</li>
+      <li>No se instala: Revisar HTTPS y entrega de <code>manifest.json</code> y <code>sw.js</code>.</li>
+      <li>Offline limitado: Asegurar primera carga online y reconectar periódicamente.</li>
+    </ul>
+    <h2>Limitaciones</h2>
+    <p>Transacciones y sincronización requieren conexión. En iOS, la caché PWA puede ser más restrictiva.</p>
+  </body>
+  </html>

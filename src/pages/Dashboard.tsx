@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/newClient";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
+import { createLogger } from "@/lib/logger";
 import { startOfMonth, startOfDay, subDays, format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -144,6 +145,7 @@ const Dashboard = () => {
   const [lowStockCount, setLowStockCount] = useState(0);
   const [criticalStockCount, setCriticalStockCount] = useState(0);
   const prevAlertCounts = useRef<{ low: number; critical: number }>({ low: 0, critical: 0 });
+  const firstLoadRef = useRef<boolean>(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -200,6 +202,7 @@ const Dashboard = () => {
     return startOfMonth(now).toISOString();
   };
 
+  const log = createLogger("Dashboard");
   const fetchMetrics = async ({ background }: { background: boolean }) => {
     if (background) {
       setUpdating(true);
@@ -216,7 +219,7 @@ const Dashboard = () => {
       if (productosRes.error) {
         const code = (productosRes.error as any)?.code || "";
         if (code !== "PGRST205") {
-          console.warn("[Dashboard] Error obteniendo productos:", productosRes.error);
+          log.warn("Error obteniendo productos", productosRes.error);
         }
         productos = productosRes.data || [];
       } else {
@@ -232,7 +235,7 @@ const Dashboard = () => {
       if (categoriasRes.error) {
         const code = (categoriasRes.error as any)?.code || "";
         if (code !== "PGRST205") {
-          console.warn("[Dashboard] Error obteniendo categorías:", categoriasRes.error);
+          log.warn("Error obteniendo categorías", categoriasRes.error);
         }
       } else {
         for (const c of (categoriasRes.data || [])) {
@@ -254,7 +257,7 @@ const Dashboard = () => {
       if (ventasRes.error) {
         const code = (ventasRes.error as any)?.code || "";
         if (code !== "PGRST205") {
-          console.warn("[Dashboard] Error obteniendo ventas del periodo:", ventasRes.error);
+          log.warn("Error obteniendo ventas del periodo", ventasRes.error);
         }
       }
       const ventasDelPeriodo = (ventasRes.data || []).reduce((sum: number, v: any) => sum + (v.total || 0), 0);
@@ -264,7 +267,7 @@ const Dashboard = () => {
       try {
         alertRows = await fetchAlerts({ empresaId, desde, hasta, leida: false, orderBy: "created_at", orderAsc: false });
       } catch (e: any) {
-        console.warn("[Dashboard] Error obteniendo alertas:", e?.message || e);
+        log.warn("Error obteniendo alertas", e?.message || e);
       }
       let alertasActivas = alertRows.length;
       let lowCount = alertRows.filter((a: any) => a.tipo === "stock_bajo").length;
@@ -285,13 +288,17 @@ const Dashboard = () => {
       }
       setLowStockCount(lowCount);
       setCriticalStockCount(criticalCount);
-      if (lowCount > prevAlertCounts.current.low) {
-        toast.warning(`Nuevas alertas de stock bajo: +${lowCount - prevAlertCounts.current.low}`);
-      }
-      if (criticalCount > prevAlertCounts.current.critical) {
-        toast.error(`Nuevas alertas de stock crítico: +${criticalCount - prevAlertCounts.current.critical}`);
+      // Evitar toasts en la primera carga: solo avisar de incrementos posteriores
+      if (!firstLoadRef.current) {
+        if (lowCount > prevAlertCounts.current.low) {
+          toast.warning(`Nuevas alertas de stock bajo: +${lowCount - prevAlertCounts.current.low}`);
+        }
+        if (criticalCount > prevAlertCounts.current.critical) {
+          toast.error(`Nuevas alertas de stock crítico: +${criticalCount - prevAlertCounts.current.critical}`);
+        }
       }
       prevAlertCounts.current = { low: lowCount, critical: criticalCount };
+      if (firstLoadRef.current) firstLoadRef.current = false;
 
       setKpis({ productosEnStock, ventasDelPeriodo, valorInventario, alertasActivas });
 
@@ -307,7 +314,7 @@ const Dashboard = () => {
         if (ventasDetalleRes.error) {
           const code = (ventasDetalleRes.error as any)?.code || "";
           if (code !== "PGRST205") {
-            console.warn("[Dashboard] Error obteniendo ventas_detalle:", ventasDetalleRes.error);
+            log.warn("Error obteniendo ventas_detalle", ventasDetalleRes.error);
           }
         } else {
           ventasDetalleRows = ventasDetalleRes.data || [];
@@ -382,7 +389,7 @@ const Dashboard = () => {
       } else {
         const code = (ventasPrevRes.error as any)?.code || "";
         if (code !== "PGRST205") {
-          console.warn("[Dashboard] Error obteniendo ventas del periodo anterior:", ventasPrevRes.error);
+          log.warn("Error obteniendo ventas del periodo anterior", ventasPrevRes.error);
         }
       }
 
@@ -391,7 +398,7 @@ const Dashboard = () => {
         const recentRows = await fetchAlerts({ empresaId, orderBy: "created_at", orderAsc: false, limit: 4 });
         setRecentAlerts(recentRows as any);
       } catch (e: any) {
-        console.warn("[Dashboard] Error obteniendo alertas recientes:", e?.message || e);
+        log.warn("Error obteniendo alertas recientes", e?.message || e);
         setRecentAlerts([] as any);
       }
 
@@ -419,7 +426,7 @@ const Dashboard = () => {
         toast.error("Sin conexión con el servidor. Reintentaremos pronto…");
       } else {
         // En lugar de romper todo el dashboard, registramos el error y continuamos
-        console.warn("[Dashboard] Error general en fetchMetrics:", error);
+        log.warn("Error general en fetchMetrics", error);
       }
     } finally {
       if (background) {

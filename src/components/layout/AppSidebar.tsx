@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useIsMobileOrTablet } from "@/hooks/use-mobile";
+import { performLogout } from "@/services/auth";
 
 const menuItems = [
   {
@@ -98,47 +99,17 @@ export function AppSidebar() {
   };
 
   const handleLogout = async () => {
+    const { ok, message } = await performLogout();
+    if (ok) {
+      toast.success(message);
+    } else {
+      toast.error(message);
+    }
+    await new Promise((res) => setTimeout(res, 200));
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
-        toast.success("Sesión cerrada exitosamente");
-      } else {
-        const res = await supabase.auth.signOut({ scope: 'global' });
-        const error: any = (res as any)?.error;
-        if (error) {
-          const msg = String(error?.message || "").toLowerCase();
-          const status = (error?.status as number) || null;
-          const isAbort = msg.includes("abort") || /err_aborted/i.test(msg);
-          const isUnauthorized = status === 401 || /401|unauthorized|invalid/i.test(msg);
-          if (!isAbort && !isUnauthorized) {
-            toast.error("Error al cerrar sesión");
-            return;
-          }
-          toast.success("Sesión cerrada exitosamente");
-        } else {
-          toast.success("Sesión cerrada exitosamente");
-        }
-      }
-    } catch (err) {
-      const msg = String((err as any)?.message || "").toLowerCase();
-      const isAbort = msg.includes("abort") || /err_aborted/i.test(msg);
-      const isUnauthorized = /401|unauthorized|invalid/i.test(msg);
-      if (!isAbort && !isUnauthorized) {
-        console.error("[Sidebar Logout] Exception:", err);
-        toast.error("Error al cerrar sesión");
-        return;
-      }
-      toast.success("Sesión cerrada exitosamente");
-    } finally {
-      await new Promise((res) => setTimeout(res, 200));
-      // Navegación SPA para evitar abortos de red por recarga completa
-      try {
-        navigate('/auth', { replace: true });
-      } catch {
-        // Fallback en caso extremo
-        window.location.href = `${import.meta.env.BASE_URL}auth`;
-      }
+      navigate('/auth', { replace: true });
+    } catch {
+      window.location.href = `${import.meta.env.BASE_URL}auth`;
     }
   };
 

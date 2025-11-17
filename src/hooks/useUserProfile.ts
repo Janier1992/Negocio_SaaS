@@ -14,7 +14,14 @@ export const useUserProfile = () => {
 
   const fetchProfile = useCallback(async (): Promise<string | null> => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) {
+        const msg = String(error?.message || "").toLowerCase();
+        const isInvalidRefresh = msg.includes("invalid refresh token") || msg.includes("refresh token not found");
+        if (isInvalidRefresh) {
+          try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
+        }
+      }
 
       if (!user) {
         setProfile(null);

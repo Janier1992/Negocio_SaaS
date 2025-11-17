@@ -3,7 +3,7 @@ import { Bell, CheckCheck, Inbox, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useNotifications } from "./NotificationsProvider";
+import { useNotifications } from "@/hooks/useNotifications";
 import { useNavigate } from "react-router-dom";
 
 export const NotificationBell: React.FC = () => {

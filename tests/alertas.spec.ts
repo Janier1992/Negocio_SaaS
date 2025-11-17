@@ -36,12 +36,15 @@ test.describe('Módulo de Alertas', () => {
     await expect(page.getByText('Código: PB-1')).toBeVisible();
     await expect(page.getByText('Código: PC-2')).toBeVisible();
 
-    // “Marcar todas como leídas” debe estar oculto o deshabilitado cuando supportsLeida=false
+    // “Marcar todas como leídas” siempre visible y habilitado
     const markAll = page.getByText('Marcar todas como leídas');
-    // Dependiendo de render, puede no existir; si existe, debería estar disabled
-    if (await markAll.count()) {
-      await expect(markAll).toBeDisabled();
-    }
+    await expect(markAll).toBeVisible();
+    await expect(markAll).toBeEnabled();
+
+    // Al hacer clic, todas deben quedar leídas (se oculta botón individual)
+    await markAll.click();
+    const perItemButtons = page.getByRole('button', { name: 'Marcar como leída' });
+    await expect(perItemButtons).toHaveCount(0);
 
     // Cambia filtros y asegura que siguen listando
     await page.getByRole('button', { name: 'Stock Bajo' }).click();
@@ -82,8 +85,12 @@ test.describe('Módulo de Alertas', () => {
     await expect(rows).toHaveCount(2);
     await expect(page.getByText('Alerta real manual')).toBeVisible();
     await expect(page.getByText('Stock bajo en')).toBeVisible();
-    // La acción "Marcar todas" debe estar habilitada al haber soporte de lectura
+    // La acción "Marcar todas" está habilitada siempre
     const markAll = page.getByText('Marcar todas como leídas');
+    await expect(markAll).toBeVisible();
     await expect(markAll).toBeEnabled();
+    await markAll.click();
+    const perItemButtons = page.getByRole('button', { name: 'Marcar como leída' });
+    await expect(perItemButtons).toHaveCount(0);
   });
 });

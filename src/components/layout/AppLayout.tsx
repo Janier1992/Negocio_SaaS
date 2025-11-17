@@ -1,7 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { AppSidebar } from "./AppSidebar";
-import { MobileRail } from "./MobileRail";
+import { MobileBottomNav } from "./MobileBottomNav";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/newClient";
@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { ThemeToggle } from "@/components/system/ThemeToggle";
+import { performLogout } from "@/services/auth";
+import { useIsMobile } from "@/hooks/use-mobile";
 // Onboarding eliminado: integramos la creación de empresa en el registro de Auth
 
 export const AppLayout = () => {
@@ -104,57 +106,27 @@ export const AppLayout = () => {
   }, [empresaId]);
 
   const handleLogout = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      // Si no hay sesión, consideramos logout exitoso (evita 401 del endpoint)
-      if (!session) {
-        try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
-        toast.success("Sesión cerrada exitosamente");
-      } else {
-        const res = await supabase.auth.signOut({ scope: 'global' });
-        const error: any = (res as any)?.error;
-        if (error) {
-          const msg = String(error?.message || "").toLowerCase();
-          const status = (error?.status as number) || null;
-          const isAbort = msg.includes("abort") || /err_aborted/i.test(msg);
-          const isUnauthorized = status === 401 || /401|unauthorized|invalid/i.test(msg);
-          // Ignorar abortos de red y 401 (token inválido / sin sesión) como logout exitoso
-          if (!isAbort && !isUnauthorized) {
-            toast.error("Error al cerrar sesión");
-            return;
-          }
-          toast.success("Sesión cerrada exitosamente");
-        } else {
-          toast.success("Sesión cerrada exitosamente");
-        }
-      }
-    } catch (err: any) {
-      const msg = String(err?.message || "").toLowerCase();
-      const isAbort = msg.includes("abort") || /err_aborted/i.test(msg);
-      const isUnauthorized = /401|unauthorized|invalid/i.test(msg);
-      if (!isAbort && !isUnauthorized) {
-        console.error("[Logout] Exception:", err);
-        toast.error("Error al cerrar sesión");
-        return;
-      }
-      toast.success("Sesión cerrada exitosamente");
-    } finally {
-      await new Promise((res) => setTimeout(res, 200));
-      navigate("/auth", { replace: true });
+    const { ok, message } = await performLogout();
+    if (ok) {
+      toast.success(message);
+    } else {
+      toast.error(message);
     }
+    await new Promise((res) => setTimeout(res, 200));
+    navigate("/auth", { replace: true });
   };
 
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
-        {/* Rail de iconos fija en móviles */}
-        <MobileRail />
+        {/* Navegación inferior fija en móviles */}
+        <MobileBottomNav />
         <AppSidebar />
-        <div className="flex-1 flex flex-col w-full pl-14 md:pl-0">
+        <div className="flex-1 flex flex-col w-full pl-0">
           <header className="h-16 border-b border-border bg-card flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-10">
             <div className="flex items-center gap-2">
-              {/* Trigger visible en todas las vistas para permitir colapso manual */}
-              <SidebarTrigger className="mr-2" />
+              {/* Trigger sólo en escritorio/tablet; eliminado en móvil (<768px) */}
+              {!useIsMobile() && <SidebarTrigger className="mr-2" />}
               <h1 className="text-xl font-semibold text-foreground truncate">{empresaNombre}</h1>
             </div>
             <div className="flex items-center gap-2">
@@ -172,7 +144,7 @@ export const AppLayout = () => {
               </Button>
             </div>
           </header>
-          <main className="flex-1 py-4 sm:py-6">
+          <main className="flex-1 py-4 sm:py-6 pb-16 md:pb-0">
             <div className="app-container">
             {/* Gate content behind empresaId presence */}
             {loading ? (

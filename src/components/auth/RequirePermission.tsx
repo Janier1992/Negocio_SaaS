@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Loader2, ShieldAlert } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export const RequirePermission = ({ permission, children }: { permission: string; children: React.ReactNode }) => {
   const { hasPermission } = usePermissions();
@@ -29,14 +29,8 @@ export const RequirePermission = ({ permission, children }: { permission: string
   }
 
   if (!allowed) {
-    return (
-      <div className="min-h-40 flex items-center justify-center p-6">
-        <div className="flex items-center gap-3 text-muted-foreground">
-          <ShieldAlert className="h-5 w-5" />
-          <span>No tienes permisos para acceder a esta sección.</span>
-        </div>
-      </div>
-    );
+    // Mantiene la seguridad ocultando el contenido sin mostrar mensajes de error visibles
+    return <div className="min-h-40" aria-hidden="true" />;
   }
 
   return <>{children}</>;

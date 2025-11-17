@@ -95,4 +95,26 @@ describe('Carga masiva de productos: parseo y actualización de precio', () => {
     // El campo duplicates del hook se reutiliza para reportar actualizados
     expect(res.duplicates).toBe(3);
   });
+
+  it('soporta decimales con coma y encabezado "Precio"', async () => {
+    hoisted.sheetRows = [
+      { codigo: 'PROD001', nombre: 'Arepa', Precio: '$ 1.200,00', stock: '150', stock_minimo: '30' },
+      { codigo: 'PROD002', nombre: 'Panela', Precio: '$ 2.500,50', stock: '200', stock_minimo: '25' },
+      { codigo: 'PROD003', nombre: 'Café', Precio: '$ 8.500,75', stock: '120', stock_minimo: '20' },
+    ];
+
+    const categorias: any[] = [];
+    const proveedores: any[] = [];
+
+    const res = await uploadProductosCore(hoisted.sheetRows, 'empresa-1' as any, (await import('@/integrations/supabase/newClient')).supabase as any, categorias, proveedores);
+
+    expect(hoisted.recordedUpdates.length).toBe(3);
+    const preciosActualizados = hoisted.recordedUpdates.map(u => u.payload.precio);
+    expect(preciosActualizados).toEqual([1200.00, 2500.50, 8500.75]);
+
+    // Validación de estadísticas
+    expect(res.priceStats.rows).toBe(3);
+    expect(res.priceStats.recognized).toBe(3);
+    expect(res.priceStats.parsedPositive).toBe(3);
+  });
 });

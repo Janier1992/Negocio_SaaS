@@ -25,6 +25,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { RequirePermission } from "@/components/auth/RequirePermission";
+import { logger } from "@/lib/logger";
+import { formatCurrencyCOP, parseMoney } from "@/lib/format";
 
 const Inventario = () => {
   const { empresaId, loading: profileLoading, profile } = useUserProfile();
@@ -72,12 +74,29 @@ const Inventario = () => {
       if (categoriasRes.error) throw categoriasRes.error;
       if (proveedoresRes.error) throw proveedoresRes.error;
 
-      setProductos(productosRes.data || []);
+      const productosData = productosRes.data || [];
+      // Normaliza precio a número usando parseMoney; mantiene NaN para nulos/invalidos
+      const productosNormalized = (productosData as any[]).map((p: any) => ({
+        ...p,
+        precio: parseMoney(p.precio, NaN),
+      }));
+      // Logging de precios nulos/invalidos
+      const invalidPrices = productosNormalized.filter((p: any) => !Number.isFinite(Number(p.precio)));
+      const zeroPrices = productosNormalized.filter((p: any) => Number(p.precio) === 0);
+      logger.info(`Productos cargados: ${productosNormalized.length}`);
+      if (invalidPrices.length) {
+        logger.warn(`Precios nulos/invalidos: ${invalidPrices.length}`, invalidPrices.slice(0, 5).map((p: any) => ({ id: p.id, nombre: p.nombre, precio: p.precio })));
+      }
+      if (zeroPrices.length) {
+        logger.info(`Precios en cero detectados: ${zeroPrices.length}`, zeroPrices.slice(0, 5).map((p: any) => ({ id: p.id, nombre: p.nombre })));
+      }
+
+      setProductos(productosNormalized);
       setCategorias(categoriasRes.data || []);
       setProveedores(proveedoresRes.data || []);
     } catch (error: any) {
       toast.error("Error al cargar datos");
-      console.error(error);
+      logger.error("Fallo al cargar inventario", error);
     } finally {
       setLoading(false);
     }
@@ -384,18 +403,10 @@ const columns: Column<any>[] = [
     sortable: true, 
     filterable: true, 
     align: "right",
-    accessor: (p) => Number(p.precio ?? 0),
+    accessor: (p) => parseMoney(p.precio),
     render: (p) => {
-      const val = p.precio;
-      if (val == null) return <span className="text-muted-foreground">—</span>;
-      const num = Number(val);
-      if (!Number.isFinite(num)) return <span className="text-muted-foreground">—</span>;
-      try {
-        const fmt = new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 2 });
-        return fmt.format(num);
-      } catch {
-        return `$${num.toFixed(2)}`;
-      }
+      const formatted = formatCurrencyCOP(p.precio);
+      return formatted === "—" ? <span className="text-muted-foreground">—</span> : formatted;
     }
   },
   { 

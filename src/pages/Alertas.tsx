@@ -244,12 +244,12 @@ const Alertas = () => {
 
   const marcarLeida = async (id: string) => {
     const isUuid = /^[0-9a-fA-F-]{36}$/.test(id);
-    if (!supportsLeida || !isUuid) {
-      toast.info("La marcación de lectura solo aplica a alertas reales.");
-      return;
-    }
     try {
-      await markAlertRead(id, true);
+      // Persistir sólo si es alerta real y hay soporte de columna 'leida'
+      if (isUuid && supportsLeida) {
+        await markAlertRead(id, true);
+      }
+      // Siempre reflejar en UI
       setAlertas(prev => prev.map(a => (a.id === id ? { ...a, leida: true } : a)));
       toast.success("Alerta marcada como leída");
     } catch (err: any) {
@@ -259,18 +259,19 @@ const Alertas = () => {
   };
 
   const marcarTodasLeidas = async () => {
-    if (!supportsLeida) {
-      toast.info("La marcación de lectura no está disponible en esta instancia.");
-      return;
-    }
     try {
       const ids = filteredAlertas.map(a => a.id);
       if (ids.length === 0) return;
-      const { error } = await supabase
-        .from("alertas")
-        .update({ leida: true })
-        .in("id", ids);
-      if (error) throw error;
+      // Persistir sólo ids reales (UUID) cuando hay soporte; el resto se marca localmente
+      const uuidRegex = /^[0-9a-fA-F-]{36}$/;
+      const realIds = supportsLeida ? ids.filter((id) => uuidRegex.test(id)) : [];
+      if (realIds.length > 0) {
+        const { error } = await supabase
+          .from("alertas")
+          .update({ leida: true })
+          .in("id", realIds);
+        if (error) throw error;
+      }
       setAlertas(prev => prev.map(a => ({ ...a, leida: true })));
       toast.success("Todas las alertas visibles marcadas como leídas");
     } catch (err: any) {
@@ -324,7 +325,10 @@ const Alertas = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Listado de Alertas</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Listado de Alertas</CardTitle>
+            <Button variant="default" onClick={marcarTodasLeidas}>Marcar todas como leídas</Button>
+          </div>
           <div className="grid grid-cols-1 gap-3 mt-4">
             <div className="flex gap-2">
               <Button
@@ -378,7 +382,7 @@ const Alertas = () => {
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-foreground">{a.titulo}</p>
                       {getTipoBadge(a.tipo)}
-                      {supportsLeida && a.leida && <Badge variant="outline">Leída</Badge>}
+                      {a.leida && <Badge variant="outline">Leída</Badge>}
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">{a.mensaje}</p>
                     {a.producto_id && productosMap.get(String(a.producto_id)) && (
@@ -393,7 +397,7 @@ const Alertas = () => {
                     <p className="text-xs text-muted-foreground mt-1">{new Date(a.created_at).toLocaleString()}</p>
                   </div>
                   <div className="flex flex-col gap-2">
-                    {supportsLeida && !a.leida && (
+                    {!a.leida && (
                       <Button variant="outline" size="sm" onClick={() => marcarLeida(a.id)}>
                         Marcar como leída
                       </Button>

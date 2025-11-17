@@ -75,9 +75,11 @@ export async function uploadProductosCore(
     .select("id, codigo")
     .eq("empresa_id", empresaId);
 
-  const existingCodes = new Set(existingProductos?.map((p: any) => String(p.codigo).toLowerCase()) || []);
+  // Normaliza códigos existentes (trim y lowercase) para evitar desalineación con el Excel
+  const normalizeKey = (v: any) => sanitizeCell(v || "").toLowerCase();
+  const existingCodes = new Set((existingProductos || []).map((p: any) => normalizeKey(p.codigo)));
   const existingCodeToId = new Map<string, string>(
-    (existingProductos || []).map((p: any) => [String(p.codigo).toLowerCase(), String(p.id)])
+    (existingProductos || []).map((p: any) => [normalizeKey(p.codigo), String(p.id)])
   );
 
   const normalize = (v: any) => sanitizeCell(v || "").toLowerCase();
@@ -131,10 +133,54 @@ export async function uploadProductosCore(
   const categoriaMap = existingCategoriaMap;
   const proveedorMap = existingProveedorMap;
 
+  // Resolución robusta de columnas provenientes del Excel
+  // - Normaliza a minúsculas
+  // - Elimina símbolos y puntuación convirtiéndolos a '_' y colapsa múltiples '_'
+  // - Recorta '_' al inicio/fin
+  const normalizeColName = (k: any) => {
+    let s = String(k || "").toLowerCase();
+    s = s.replace(/[^a-z0-9]+/g, "_");
+    s = s.replace(/_+/g, "_");
+    s = s.replace(/^_+|_+$/g, "");
+    return s;
+  };
+  const firstKeys = Object.keys(firstRow || {}).map((k) => ({ raw: k, norm: normalizeColName(k) }));
+  const resolveColumn = (preferred: string[], fallback?: string): string | null => {
+    const set = new Set(preferred.map((n) => normalizeColName(n)));
+    for (const k of firstKeys) {
+      if (set.has(k.norm)) return k.raw;
+    }
+    if (fallback) {
+      const fb = normalizeColName(fallback);
+      const found = firstKeys.find((k) => k.norm === fb);
+      return found ? found.raw : null;
+    }
+    return null;
+  };
+
+  const precioCol = resolveColumn(["precio", "precio_unitario", "precio unitario", "precio_venta", "precio venta", "valor"]);
+  const stockCol = resolveColumn(["stock", "cantidad"]);
+  const stockMinimoCol = resolveColumn(["stock_minimo", "stock minimo", "minimo", "min"]);
+
+  if (!precioCol) {
+    // Permitimos continuar pero reportamos que no se encontró columna de precio
+    console.warn("[ExcelUpload] No se detectó columna de precio en el Excel. Se usará 0 por defecto.");
+  }
+
+  // Estadísticas de validación
+  let recognizedPriceRows = 0;
+  let parsedPositivePrices = 0;
+  let parsedZeroPrices = 0;
+
   const newProductos = jsonData
     .map((row: any) => {
       const codigo = sanitizeCell(row.codigo || "");
       if (!codigo || existingCodes.has(codigo.toLowerCase())) return null;
+
+      const precioRaw = precioCol ? (row as any)[precioCol] : undefined;
+      const precioNum = parseDecimal(precioRaw, 0);
+      if (precioCol) recognizedPriceRows += 1;
+      if (precioNum > 0) parsedPositivePrices += 1; else parsedZeroPrices += 1;
 
       return {
         codigo,
@@ -142,9 +188,9 @@ export async function uploadProductosCore(
         descripcion: row.descripcion ? sanitizeCell(row.descripcion) : null,
         categoria_id: row.categoria ? categoriaMap.get(normalize(row.categoria)) || null : null,
         proveedor_id: row.proveedor ? proveedorMap.get(normalize(row.proveedor)) || null : null,
-        precio: parseDecimal(row.precio, 0),
-        stock: parseInteger(row.stock, 0),
-        stock_minimo: parseInteger(row.stock_minimo, 0),
+        precio: precioNum,
+        stock: parseInteger(stockCol ? (row as any)[stockCol] : row.stock, 0),
+        stock_minimo: parseInteger(stockMinimoCol ? (row as any)[stockMinimoCol] : row.stock_minimo, 0),
         empresa_id: empresaId,
       };
     })
@@ -157,6 +203,10 @@ export async function uploadProductosCore(
       const codeLower = codigo.toLowerCase();
       const id = existingCodeToId.get(codeLower);
       if (!id) return null;
+      const precioRaw = precioCol ? (row as any)[precioCol] : undefined;
+      const precioNum = parseDecimal(precioRaw, 0);
+      if (precioCol) recognizedPriceRows += 1;
+      if (precioNum > 0) parsedPositivePrices += 1; else parsedZeroPrices += 1;
       return {
         id,
         payload: {
@@ -164,9 +214,9 @@ export async function uploadProductosCore(
           descripcion: row.descripcion ? sanitizeCell(row.descripcion) : null,
           categoria_id: row.categoria ? categoriaMap.get(normalize(row.categoria)) || null : null,
           proveedor_id: row.proveedor ? proveedorMap.get(normalize(row.proveedor)) || null : null,
-          precio: parseDecimal(row.precio, 0),
-          stock: parseInteger(row.stock, 0),
-          stock_minimo: parseInteger(row.stock_minimo, 0),
+          precio: precioNum,
+          stock: parseInteger(stockCol ? (row as any)[stockCol] : row.stock, 0),
+          stock_minimo: parseInteger(stockMinimoCol ? (row as any)[stockMinimoCol] : row.stock_minimo, 0),
         },
       };
     })
@@ -194,5 +244,12 @@ export async function uploadProductosCore(
   return {
     inserted: newProductos.length,
     duplicates: updates.length,
+    updated: updatedCount,
+    priceStats: {
+      rows: (jsonData || []).length,
+      recognized: recognizedPriceRows,
+      parsedPositive: parsedPositivePrices,
+      parsedZero: parsedZeroPrices,
+    },
   };
 }

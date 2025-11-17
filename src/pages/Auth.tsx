@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import { checkAuthConnectivity, getSupabaseEnv } from "@/integrations/supabase/health";
+import { checkAuthConnectivity, getSupabaseEnv, formatAuthErrorMessage } from "@/integrations/supabase/health";
 
 const SITE_URL = import.meta.env.MODE === 'development'
   ? window.location.origin
@@ -38,16 +38,33 @@ export default function Auth() {
   useEffect(() => {
     // Check if user is already logged in
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        navigate(redirectPath);
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          const msg = String(error?.message || "").toLowerCase();
+          const isInvalidRefresh = msg.includes("invalid refresh token") || msg.includes("refresh token not found");
+          if (isInvalidRefresh) {
+            // Limpia estado local para evitar intentos de refresh y ruido en consola
+            try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
+          }
+        }
+        if (session) {
+          navigate(redirectPath);
+        }
+      } catch (err: any) {
+        const msg = String(err?.message || "").toLowerCase();
+        const isInvalidRefresh = msg.includes("invalid refresh token") || msg.includes("refresh token not found");
+        if (isInvalidRefresh) {
+          try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
+        }
+        // No interrumpir la UI de login
       }
     };
     checkUser();
   }, [navigate, redirectPath]);
 
   useEffect(() => {
-    // Health check temprano para detectar problemas de conexión/Auth
+    // Health check siempre activo; incluye header apikey en ping para evitar 401
     const runHealth = async () => {
       const env = getSupabaseEnv();
       if (!env.isConfigured) {
@@ -56,8 +73,7 @@ export default function Auth() {
       }
       const health = await checkAuthConnectivity();
       if (!health.ok) {
-        const reason = health.error || `status=${health.status ?? 'n/a'}`;
-        toast.error(`No se pudo conectar al servicio de autenticación (${reason})`);
+        toast.error(formatAuthErrorMessage(health));
       }
     };
     void runHealth();
