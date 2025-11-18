@@ -98,6 +98,29 @@ Notas:
 - Si también usas GitHub Pages, recuerda establecer `VITE_BASE` con la subruta del repo en el build de Pages.
 - Para Supabase Auth, configura correctamente las URLs de redirección en `Authentication → URL Configuration` (incluye tu dominio de Vercel y `http://localhost:8080` para desarrollo).
 
+## PWA (Aplicación Web Progresiva)
+
+- Manifest (`public/manifest.json`):
+  - `name`, `short_name`, `start_url: /auth`, `display: standalone`, `theme_color`, `background_color`.
+  - Íconos: 192×192 y 512×512 como `data:image/png;base64,...` generados desde `favicon.svg`.
+- Service Worker (`public/sw.js`):
+  - Precache del shell (`index.html`, `favicon.svg`, `manifest.json`).
+  - Navegación offline (network-first con fallback a `index.html`).
+  - Assets cache-first con revalidación en segundo plano.
+  - Actualizaciones automáticas: `SKIP_WAITING` y recarga en `controllerchange`.
+- Registro del SW (`src/main.tsx`): sólo en producción; verifica actualizaciones periódicamente.
+- Botón de instalación (`src/components/system/InstallPrompt.tsx`):
+  - Captura `beforeinstallprompt`, muestra botón “Instalar” y gestiona el flujo.
+- Generación de íconos como data‑URL:
+  - `npm run pwa:icons` (usa `sharp` para rasterizar `public/favicon.svg`).
+
+Verificación rápida:
+- DevTools → Application → Manifest: íconos y campos válidos.
+- DevTools → Application → Service Workers: `sw.js` activo.
+- Lighthouse → PWA ≥ 90.
+
+Documentación completa: ver `docs/PWA_Manual.md`.
+
 ## Seguridad: CSP y Verificación
 
 - Política CSP por entorno (inyectada en build):
@@ -309,7 +332,8 @@ Para diagnosticar el mensaje "No se pudo conectar al servicio de autenticación"
   - `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` deben estar presentes y válidos.
   - Reinicia Vite tras cambios en `.env`.
 - Prueba endpoint público de Auth:
-  - `GET ${VITE_SUPABASE_URL}/auth/v1/info` debe responder `200`.
+  - `GET ${VITE_SUPABASE_URL}/auth/v1/settings` debe responder `200` (GoTrue).
+    - Si obtenes `404` en `/auth/v1/info`, es porque ese endpoint no existe; usa `/settings`.
   - En Windows/PowerShell:
     - `Invoke-WebRequest "$env:VITE_SUPABASE_URL/auth/v1/info" -UseBasicParsing | Select-Object StatusCode`
 - Revisa CSP y orígenes permitidos:

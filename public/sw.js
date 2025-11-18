@@ -1,5 +1,6 @@
-const CACHE_NAME = "mnp-cache-v3";
-const BASE = "/MiNegocioPymes/";
+const CACHE_NAME = "mnp-cache-v4";
+// Deriva la base dinámicamente del scope del Service Worker
+const BASE = new URL(self.registration.scope).pathname.replace(/\/+$/, "/");
 const INDEX = `${BASE}index.html`;
 const SHELL = [INDEX, `${BASE}favicon.svg`, `${BASE}manifest.json`];
 
@@ -78,4 +79,38 @@ self.addEventListener("fetch", (event) => {
 
   // Por defecto: pasar a red sin interferir (p.ej. Supabase, imágenes externas)
   event.respondWith(fetch(request));
+});
+
+// Mostrar notificaciones push cuando lleguen mensajes del servidor
+self.addEventListener('push', (event) => {
+  try {
+    const data = event.data ? event.data.json() : {};
+    const title = data.title || 'Notificación';
+    const options = {
+      body: data.body || '',
+      icon: `${BASE}favicon.svg`,
+      badge: `${BASE}favicon.svg`,
+      data: data.data || {},
+      actions: (data.actions || []),
+    };
+    event.waitUntil(self.registration.showNotification(title, options));
+  } catch (e) {
+    // Si el payload no es JSON, intenta mostrar texto crudo
+    const text = event.data ? event.data.text() : '';
+    event.waitUntil(self.registration.showNotification('Notificación', { body: text }));
+  }
+});
+
+// Manejar clics en la notificación
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || BASE;
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ((client as any).url === url && 'focus' in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(url);
+    })
+  );
 });

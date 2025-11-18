@@ -2,6 +2,11 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "env": {
+    "VITE_SUPABASE_URL": "https://escbtxtmvtqiutnhyhun.supabase.co",
+    "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzY2J0eHRtdnRxaXV0bmh5aHVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIxMTgzMTIsImV4cCI6MjA3NzY5NDMxMn0.NkiEotVs6AxfcWS6BAlFs2vPedi_AJ2OxxiU__PW7jg",
+    "VITE_PUBLIC_SITE_URL": "https://mi-negocioerp.vercel.app"
+  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]

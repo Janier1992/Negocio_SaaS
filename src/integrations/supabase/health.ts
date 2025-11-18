@@ -39,7 +39,8 @@ export async function pingAuthInfo(timeoutMs = 6000): Promise<AuthHealth> {
     const headers: Record<string, string> = {};
     // Algunos proyectos requieren el header apikey para endpoints públicos
     if (SUPABASE_ANON_KEY) headers["apikey"] = SUPABASE_ANON_KEY;
-    const res = await fetch(`${SUPABASE_URL}/auth/v1/info`, { signal: controller.signal, headers });
+    // Usa endpoint correcto de GoTrue para configuración pública
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/settings`, { signal: controller.signal, headers });
     clearTimeout(id);
     return { ok: res.ok, url: SUPABASE_URL, anonKeyPresent: !!SUPABASE_ANON_KEY, reachable: true, status: res.status, error: null };
   } catch (e) {

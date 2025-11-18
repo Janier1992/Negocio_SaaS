@@ -22,6 +22,8 @@ import { NotificationsProvider } from "@/components/notifications/NotificationsP
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useEffect } from "react";
 import { ensureAdminAccessForEmail } from "@/services/users";
+import InstallPrompt from "@/components/system/InstallPrompt";
+import PushSetup from "@/components/notifications/PushSetup";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +42,8 @@ const AppInner = () => {
     <TooltipProvider>
       <ErrorBoundary>
         <Sonner />
+        <InstallPrompt />
+        <PushSetup />
         <NotificationsProvider empresaId={empresaId}>
           <BrowserRouter
             basename={import.meta.env.BASE_URL}
