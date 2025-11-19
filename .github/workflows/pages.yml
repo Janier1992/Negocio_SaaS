@@ -36,7 +36,7 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_BASE: /ERP_Negocios1125/
         run: |
-          npm run build
+          npm run build -- --base=$VITE_BASE
           # SPA fallback: copiar index.html a 404.html
           cp dist/index.html dist/404.html
 
