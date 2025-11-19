@@ -28,7 +28,7 @@ export const ExcelUploadDialog = ({ onUploadComplete }: ExcelUploadDialogProps) 
         cliente: "Cliente Ejemplo",
         producto_codigo: "PROD001",
         cantidad: 5,
-        precio_unitario: 100.00,
+        precio_unitario: 100.0,
         metodo_pago: "Efectivo",
       },
     ];
@@ -119,7 +119,9 @@ export const ExcelUploadDialog = ({ onUploadComplete }: ExcelUploadDialogProps) 
               <li>precio_unitario (número)</li>
               <li>metodo_pago (Efectivo, Tarjeta, Transferencia)</li>
             </ul>
-            <p className="text-warning font-medium mt-2">⚠️ Las ventas múltiples del mismo día y cliente se agruparán automáticamente</p>
+            <p className="text-warning font-medium mt-2">
+              ⚠️ Las ventas múltiples del mismo día y cliente se agruparán automáticamente
+            </p>
           </div>
         </div>
       </DialogContent>

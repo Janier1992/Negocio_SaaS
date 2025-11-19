@@ -62,7 +62,10 @@ export async function addEgreso(input: AddEgresoInput) {
 
   const msg = String((error as any)?.message || "");
   const code = (error as any)?.code || "";
-  const isSchema = code === "PGRST205" || /schema cache/i.test(msg) || /relation\s+.*egresos.*\s+does not exist/i.test(msg);
+  const isSchema =
+    code === "PGRST205" ||
+    /schema cache/i.test(msg) ||
+    /relation\s+.*egresos.*\s+does not exist/i.test(msg);
   const isRls = /rls|policy|permission/i.test(msg);
 
   // Fallback vía Edge Function con service role para sortear RLS/caché desactualizado
@@ -88,12 +91,20 @@ export async function addEgreso(input: AddEgresoInput) {
 export function subscribeEgresos(empresaId: string, onChange: () => void) {
   const channel = supabase
     .channel("finanzas-egresos")
-    .on("postgres_changes", { event: "*", schema: "public", table: "egresos", filter: `empresa_id=eq.${empresaId}` }, () => onChange())
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "egresos", filter: `empresa_id=eq.${empresaId}` },
+      () => onChange(),
+    )
     .subscribe();
   return channel;
 }
 
-export async function logAuditEgreso(action: string, empresaId: string, details: Record<string, any>) {
+export async function logAuditEgreso(
+  action: string,
+  empresaId: string,
+  details: Record<string, any>,
+) {
   try {
     await supabase.from("auditoria").insert({
       empresa_id: empresaId,

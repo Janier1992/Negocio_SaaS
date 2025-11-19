@@ -12,7 +12,13 @@ interface StatCardProps {
   variant?: "default" | "success" | "warning" | "destructive";
 }
 
-export const StatCard = ({ title, value, icon: Icon, trend, variant = "default" }: StatCardProps) => {
+export const StatCard = ({
+  title,
+  value,
+  icon: Icon,
+  trend,
+  variant = "default",
+}: StatCardProps) => {
   const variantClasses = {
     default: "bg-primary/10 text-primary",
     success: "bg-success/10 text-success",

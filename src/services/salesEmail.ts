@@ -11,7 +11,11 @@ export type SaleConfirmationPayload = {
   items: Array<{ nombre: string; cantidad: number; precio: number }>;
 };
 
-export async function sendSaleConfirmationWithRetry(payload: SaleConfirmationPayload, retries = 3, baseDelayMs = 500) {
+export async function sendSaleConfirmationWithRetry(
+  payload: SaleConfirmationPayload,
+  retries = 3,
+  baseDelayMs = 500,
+) {
   let lastErr: any = null;
   for (let i = 0; i < retries; i++) {
     try {

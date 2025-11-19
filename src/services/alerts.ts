@@ -25,7 +25,19 @@ export type FetchAlertsParams = {
 };
 
 export async function fetchAlerts(params: FetchAlertsParams) {
-  const { empresaId, desde, hasta, tipo, leida, search, orderBy = "created_at", orderAsc = false, limit, page, pageSize } = params;
+  const {
+    empresaId,
+    desde,
+    hasta,
+    tipo,
+    leida,
+    search,
+    orderBy = "created_at",
+    orderAsc = false,
+    limit,
+    page,
+    pageSize,
+  } = params;
   let q = supabase
     .from("alertas")
     // Usar '*' para evitar 400 cuando faltan columnas opcionales (p.ej. 'leida')
@@ -52,16 +64,27 @@ export async function fetchAlerts(params: FetchAlertsParams) {
   if (res.error && code !== "PGRST205") throw res.error;
   const rows = (res.data || []) as any[];
   // Filtro client-side de 'leida' si el consumidor lo pidió
-  const filtered = typeof leida === "boolean" ? rows.filter(r => Boolean(r.leida) === leida) : rows;
+  const filtered =
+    typeof leida === "boolean" ? rows.filter((r) => Boolean(r.leida) === leida) : rows;
   return filtered;
 }
 
-export async function fetchAlertsPaged(params: Omit<FetchAlertsParams, 'limit'> & { page: number; pageSize: number }) {
-  const { empresaId, desde, hasta, tipo, leida, search, orderBy = "created_at", orderAsc = false, page, pageSize } = params;
-  let q = supabase
-    .from("alertas")
-    .select("*", { count: 'exact' })
-    .eq("empresa_id", empresaId);
+export async function fetchAlertsPaged(
+  params: Omit<FetchAlertsParams, "limit"> & { page: number; pageSize: number },
+) {
+  const {
+    empresaId,
+    desde,
+    hasta,
+    tipo,
+    leida,
+    search,
+    orderBy = "created_at",
+    orderAsc = false,
+    page,
+    pageSize,
+  } = params;
+  let q = supabase.from("alertas").select("*", { count: "exact" }).eq("empresa_id", empresaId);
   if (desde) q = q.gte("created_at", desde);
   if (hasta) q = q.lte("created_at", hasta);
   if (tipo) q = q.eq("tipo", tipo);
@@ -77,9 +100,10 @@ export async function fetchAlertsPaged(params: Omit<FetchAlertsParams, 'limit'> 
   const res = await q;
   if (res.error) throw res.error;
   const rows = (res.data || []) as any[];
-  const filtered = typeof leida === "boolean" ? rows.filter(r => Boolean(r.leida) === leida) : rows;
+  const filtered =
+    typeof leida === "boolean" ? rows.filter((r) => Boolean(r.leida) === leida) : rows;
   // Ajustar conteo al filtrado local para consistencia visual
-  const count = typeof leida === "boolean" ? filtered.length : (res.count || filtered.length);
+  const count = typeof leida === "boolean" ? filtered.length : res.count || filtered.length;
   return { rows: filtered, count };
 }
 
@@ -89,17 +113,14 @@ export function subscribeAlerts(empresaId: string, onChange: () => void) {
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "alertas", filter: `empresa_id=eq.${empresaId}` },
-      () => onChange()
+      () => onChange(),
     )
     .subscribe();
   return channel;
 }
 
 export async function markAlertRead(id: string, leida: boolean) {
-  const res = await supabase
-    .from("alertas")
-    .update({ leida })
-    .eq("id", id);
+  const res = await supabase.from("alertas").update({ leida }).eq("id", id);
   if (res.error) throw res.error;
 }
 
@@ -112,10 +133,7 @@ export async function markAlertsReadFlexible(ids: string[], leida: boolean) {
   let updated = 0;
   let attempted = realIds.length;
   if (realIds.length > 0) {
-    const res = await supabase
-      .from("alertas")
-      .update({ leida })
-      .in("id", realIds);
+    const res = await supabase.from("alertas").update({ leida }).in("id", realIds);
     if (res.error) throw res.error;
     // PostgREST no siempre retorna el conteo actualizado; calculamos por longitud
     updated = realIds.length;

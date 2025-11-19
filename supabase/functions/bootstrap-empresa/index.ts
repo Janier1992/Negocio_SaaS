@@ -5,10 +5,11 @@
 import { createClient } from "@supabase/supabase-js";
 
 // Minimal request/response helpers
-const json = (body: any, status = 200) => new Response(JSON.stringify(body), {
-  status,
-  headers: { "content-type": "application/json" },
-});
+const json = (body: any, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
 
 export const config = {
   runtime: "edge",
@@ -19,10 +20,18 @@ export default async function handler(req: Request) {
     const url = process.env.SUPABASE_URL as string;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
     if (!url || !key) {
-      return json({ error: "missing_env", message: "SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no configurados" }, 500);
+      return json(
+        {
+          error: "missing_env",
+          message: "SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no configurados",
+        },
+        500,
+      );
     }
 
-    const supabaseAdmin = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+    const supabaseAdmin = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
 
     // Extraer JWT del usuario que invoca
     const authHeader = req.headers.get("Authorization") || "";
@@ -33,7 +42,10 @@ export default async function handler(req: Request) {
 
     const userRes = await supabaseAdmin.auth.getUser(jwt);
     if (userRes.error || !userRes.data.user) {
-      return json({ error: "unauthenticated", message: "Token inválido o usuario no encontrado" }, 401);
+      return json(
+        { error: "unauthenticated", message: "Token inválido o usuario no encontrado" },
+        401,
+      );
     }
     const user = userRes.data.user;
 
@@ -60,10 +72,15 @@ export default async function handler(req: Request) {
     if (profErr) return json({ error: "profile_update_failed", message: profErr.message }, 500);
 
     // Asegurar rol admin
-    await supabaseAdmin.from("user_roles").upsert({ user_id: user.id, role: "admin" }, { onConflict: "user_id,role" });
+    await supabaseAdmin
+      .from("user_roles")
+      .upsert({ user_id: user.id, role: "admin" }, { onConflict: "user_id,role" });
 
     // Semilla mínima
-    await supabaseAdmin.from("categorias").insert({ empresa_id: empresa.id, nombre: "General" }).select("id");
+    await supabaseAdmin
+      .from("categorias")
+      .insert({ empresa_id: empresa.id, nombre: "General" })
+      .select("id");
 
     // Auditoría
     await supabaseAdmin.from("auditoria").insert({

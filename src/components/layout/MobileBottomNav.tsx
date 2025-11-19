@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Package,
@@ -10,10 +10,20 @@ import {
   Wallet,
   MoreHorizontal,
 } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { LogOut } from "lucide-react";
+import { toast } from "sonner";
+import { performLogout } from "@/services/auth";
 
 type MenuItem = { title: string; url: string; icon: any };
 
@@ -42,6 +52,7 @@ export function MobileBottomNav() {
   const { permissions } = usePermissions();
   const { profile } = useUserProfile();
   const location = useLocation();
+  const navigate = useNavigate();
   const isAdmin = (profile?.rol || "").toLowerCase() === "admin";
   const primaryUrls = new Set(primaryMenuItems.map((m) => m.url));
 
@@ -63,6 +74,21 @@ export function MobileBottomNav() {
 
   const overflowItems = permitted.filter((item) => !primaryUrls.has(item.url));
 
+  const handleLogout = async () => {
+    const { ok, message } = await performLogout();
+    if (ok) {
+      toast.success(message);
+    } else {
+      toast.error(message);
+    }
+    await new Promise((res) => setTimeout(res, 200));
+    try {
+      navigate("/auth", { replace: true });
+    } catch {
+      window.location.href = `${import.meta.env.BASE_URL}auth`;
+    }
+  };
+
   return (
     <nav
       aria-label="Navegación inferior móvil"
@@ -70,27 +96,27 @@ export function MobileBottomNav() {
     >
       <ul className="flex items-center justify-between px-2 py-1 pb-[env(safe-area-inset-bottom)]">
         {primaryMenuItems.map((item) => {
-            const isActive = location.pathname === item.url;
-            const Icon = item.icon;
-            return (
-              <li key={item.title} className="flex-1">
-                <NavLink
-                  to={item.url}
-                  aria-label={item.title}
-                  className={
-                    `flex flex-col items-center justify-center gap-0.5 py-2 rounded-md transition-colors duration-200 ` +
-                    (isActive
-                      ? "bg-sidebar-accent text-sidebar-primary"
-                      : "hover:bg-sidebar-accent/50")
-                  }
-                >
-                  <Icon className="h-5 w-5" />
-                  {/* Mantener accesibilidad sin mostrar texto visualmente */}
-                  <span className="sr-only">{item.title}</span>
-                </NavLink>
-              </li>
-            );
-          })}
+          const isActive = location.pathname === item.url;
+          const Icon = item.icon;
+          return (
+            <li key={item.title} className="flex-1">
+              <NavLink
+                to={item.url}
+                aria-label={item.title}
+                className={
+                  `flex flex-col items-center justify-center gap-0.5 py-2 rounded-md transition-colors duration-200 ` +
+                  (isActive
+                    ? "bg-sidebar-accent text-sidebar-primary"
+                    : "hover:bg-sidebar-accent/50")
+                }
+              >
+                <Icon className="h-5 w-5" />
+                {/* Mantener accesibilidad sin mostrar texto visualmente */}
+                <span className="sr-only">{item.title}</span>
+              </NavLink>
+            </li>
+          );
+        })}
         {/* Menú de desborde (⋯) para módulos extra */}
         <li className="w-14 flex justify-center">
           <DropdownMenu>
@@ -98,7 +124,7 @@ export function MobileBottomNav() {
               aria-label="Más"
               className={cn(
                 "flex flex-col items-center justify-center gap-0.5 py-2 w-12 rounded-md transition-colors duration-200",
-                "hover:bg-sidebar-accent/50"
+                "hover:bg-sidebar-accent/50",
               )}
             >
               <MoreHorizontal className="h-5 w-5" />
@@ -112,7 +138,7 @@ export function MobileBottomNav() {
                 "data-[state=open]:animate-in data-[state=closed]:animate-out data-[side=top]:slide-in-from-bottom-2"
               }
             >
-              <DropdownMenuLabel className="text-xs">Más módulos</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-xs">Más opciones</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <div className="grid grid-cols-3 gap-2">
                 {overflowItems.map((item) => {
@@ -134,6 +160,11 @@ export function MobileBottomNav() {
                   );
                 })}
               </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="gap-2">
+                <LogOut className="h-4 w-4" />
+                <span>Cerrar sesión</span>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </li>

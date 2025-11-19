@@ -53,7 +53,7 @@ const Proveedores = () => {
 
   const fetchProveedores = async () => {
     if (!empresaId) return;
-    
+
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -76,10 +76,7 @@ const Proveedores = () => {
     if (!deletingProveedor) return;
 
     try {
-      const { error } = await supabase
-        .from("proveedores")
-        .delete()
-        .eq("id", deletingProveedor.id);
+      const { error } = await supabase.from("proveedores").delete().eq("id", deletingProveedor.id);
 
       if (error) throw error;
 
@@ -107,7 +104,8 @@ const Proveedores = () => {
     if (!isAdmin) return;
     setSelectedProveedorIds((prev) => {
       const set = new Set(prev);
-      if (checked) set.add(id); else set.delete(id);
+      if (checked) set.add(id);
+      else set.delete(id);
       return Array.from(set);
     });
   };
@@ -122,7 +120,9 @@ const Proveedores = () => {
     try {
       const uniqueIds = Array.from(new Set(ids));
       // Asegura sólo IDs presentes en la grilla filtrada
-      const presentIds = uniqueIds.filter((id) => (filteredProveedores || []).some((p) => String(p.id) === id));
+      const presentIds = uniqueIds.filter((id) =>
+        (filteredProveedores || []).some((p) => String(p.id) === id),
+      );
       if (presentIds.length === 0) {
         setBulkDeleteOpen(false);
         setSelectedProveedorIds([]);
@@ -140,12 +140,15 @@ const Proveedores = () => {
         .in("proveedor_id", presentIds);
 
       if (comprasErr || cxpErr) {
-        console.warn("No se pudieron verificar referencias antes del borrado", comprasErr || cxpErr);
+        console.warn(
+          "No se pudieron verificar referencias antes del borrado",
+          comprasErr || cxpErr,
+        );
       }
 
       const referencedSet = new Set<string>([
-        ...((comprasRef || []).map((r: any) => String(r.proveedor_id))),
-        ...((cxpRef || []).map((r: any) => String(r.proveedor_id))),
+        ...(comprasRef || []).map((r: any) => String(r.proveedor_id)),
+        ...(cxpRef || []).map((r: any) => String(r.proveedor_id)),
       ]);
       const deletableIds = presentIds.filter((id) => !referencedSet.has(String(id)));
       const blockedIds = presentIds.filter((id) => referencedSet.has(String(id)));
@@ -206,9 +209,12 @@ const Proveedores = () => {
           .map((p) => String(p.nombre));
         const muestra = nombresBloqueados.slice(0, 4).join(", ");
         const sufijo = nombresBloqueados.length > 4 ? "…" : "";
-        toast.info(`No se pudieron eliminar ${blockedIds.length} por tener compras o cuentas por pagar: ${muestra}${sufijo}`);
+        toast.info(
+          `No se pudieron eliminar ${blockedIds.length} por tener compras o cuentas por pagar: ${muestra}${sufijo}`,
+        );
       }
-      if (failedCount > 0) toast.info(`No se pudieron eliminar ${failedCount} proveedores por error`);
+      if (failedCount > 0)
+        toast.info(`No se pudieron eliminar ${failedCount} proveedores por error`);
 
       setBulkDeleteOpen(false);
       setSelectedProveedorIds([]);
@@ -222,8 +228,8 @@ const Proveedores = () => {
       const friendly = /Failed to fetch/i.test(msg)
         ? "Sin conexión con el servidor. Intenta nuevamente."
         : /policy|rls|permission/i.test(msg)
-        ? "No tienes permisos para eliminar proveedores."
-        : "Error al eliminar proveedores";
+          ? "No tienes permisos para eliminar proveedores."
+          : "Error al eliminar proveedores";
       toast.error(friendly);
       console.error(error);
     }
@@ -232,7 +238,7 @@ const Proveedores = () => {
   const filteredProveedores = proveedores.filter(
     (p) =>
       p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase()))
+      (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
   if (profileLoading || loading) {
@@ -242,156 +248,183 @@ const Proveedores = () => {
   return (
     <RequirePermission permission="proveedores_read">
       <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-foreground">Proveedores</h2>
-          <p className="text-muted-foreground mt-1">
-            Gestión de proveedores y contactos
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <ExcelUploadDialog onUploadComplete={fetchProveedores} />
-          <ProveedorDialog 
-            onProveedorAdded={fetchProveedores}
-            editingProveedor={editingProveedor}
-            onClose={() => setEditingProveedor(null)}
-          />
-          <button
-            className="px-3 py-2 rounded-md bg-destructive text-destructive-foreground disabled:opacity-50"
-            disabled={!isAdmin || selectedProveedorIds.length === 0}
-            onClick={() => setBulkDeleteOpen(true)}
-            title={isAdmin ? (selectedProveedorIds.length ? `Eliminar ${selectedProveedorIds.length} seleccionados` : "Selecciona registros para eliminar") : "Permisos requeridos"}
-          >
-            Eliminar seleccionados ({selectedProveedorIds.length})
-          </button>
-        </div>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Lista de Proveedores</CardTitle>
-          <div className="relative mt-4">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar proveedores por nombre o email..."
-              className="pl-10"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-3xl font-bold text-foreground">Proveedores</h2>
+            <p className="text-muted-foreground mt-1">Gestión de proveedores y contactos</p>
           </div>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-center">
-                  <input
-                    type="checkbox"
-                    aria-label="Seleccionar todos"
-                    checked={selectedProveedorIds.length > 0 && selectedProveedorIds.length === (filteredProveedores?.length || 0)}
-                    onChange={(e) => toggleSelectAll(e.target.checked)}
-                    onClick={(e) => e.stopPropagation()}
-                    disabled={!isAdmin || (filteredProveedores?.length || 0) === 0}
-                  />
-                </TableHead>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Contacto</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Teléfono</TableHead>
-                <TableHead>Dirección</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredProveedores.length === 0 ? (
+          <div className="flex gap-2">
+            <ExcelUploadDialog onUploadComplete={fetchProveedores} />
+            <ProveedorDialog
+              onProveedorAdded={fetchProveedores}
+              editingProveedor={editingProveedor}
+              onClose={() => setEditingProveedor(null)}
+            />
+            <button
+              className="px-3 py-2 rounded-md bg-destructive text-destructive-foreground disabled:opacity-50"
+              disabled={!isAdmin || selectedProveedorIds.length === 0}
+              onClick={() => setBulkDeleteOpen(true)}
+              title={
+                isAdmin
+                  ? selectedProveedorIds.length
+                    ? `Eliminar ${selectedProveedorIds.length} seleccionados`
+                    : "Selecciona registros para eliminar"
+                  : "Permisos requeridos"
+              }
+            >
+              Eliminar seleccionados ({selectedProveedorIds.length})
+            </button>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Lista de Proveedores</CardTitle>
+            <div className="relative mt-4">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar proveedores por nombre o email..."
+                className="pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                    No se encontraron proveedores
-                  </TableCell>
+                  <TableHead className="text-center">
+                    <input
+                      type="checkbox"
+                      aria-label="Seleccionar todos"
+                      checked={
+                        selectedProveedorIds.length > 0 &&
+                        selectedProveedorIds.length === (filteredProveedores?.length || 0)
+                      }
+                      onChange={(e) => toggleSelectAll(e.target.checked)}
+                      onClick={(e) => e.stopPropagation()}
+                      disabled={!isAdmin || (filteredProveedores?.length || 0) === 0}
+                    />
+                  </TableHead>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Contacto</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Teléfono</TableHead>
+                  <TableHead>Dirección</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
-              ) : (
-                filteredProveedores.map((proveedor) => (
-                  <TableRow key={proveedor.id} className="hover:bg-muted/50">
-                    <TableCell className="text-center">
-                      <input
-                        type="checkbox"
-                        aria-label={`Seleccionar ${proveedor.nombre}`}
-                        checked={selectedProveedorIds.includes(String(proveedor.id))}
-                        onChange={(e) => toggleRowSelection(String(proveedor.id), e.target.checked)}
-                        onClick={(e) => e.stopPropagation()}
-                        disabled={!isAdmin}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">{proveedor.nombre}</TableCell>
-                    <TableCell className="text-muted-foreground">{proveedor.contacto || "-"}</TableCell>
-                    <TableCell className="text-muted-foreground">{proveedor.email || "-"}</TableCell>
-                    <TableCell className="text-muted-foreground">{proveedor.telefono || "-"}</TableCell>
-                    <TableCell className="text-muted-foreground">{proveedor.direccion || "-"}</TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button className="p-2 hover:bg-muted rounded-md transition-colors">
-                            <MoreVertical className="h-4 w-4 text-muted-foreground" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem onClick={() => setEditingProveedor(proveedor)} disabled={!isAdmin}>
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => setDeletingProveedor(proveedor)}
-                            disabled={!isAdmin}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+              </TableHeader>
+              <TableBody>
+                {filteredProveedores.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      No se encontraron proveedores
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                ) : (
+                  filteredProveedores.map((proveedor) => (
+                    <TableRow key={proveedor.id} className="hover:bg-muted/50">
+                      <TableCell className="text-center">
+                        <input
+                          type="checkbox"
+                          aria-label={`Seleccionar ${proveedor.nombre}`}
+                          checked={selectedProveedorIds.includes(String(proveedor.id))}
+                          onChange={(e) =>
+                            toggleRowSelection(String(proveedor.id), e.target.checked)
+                          }
+                          onClick={(e) => e.stopPropagation()}
+                          disabled={!isAdmin}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">{proveedor.nombre}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {proveedor.contacto || "-"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {proveedor.email || "-"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {proveedor.telefono || "-"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {proveedor.direccion || "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="p-2 hover:bg-muted rounded-md transition-colors">
+                              <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem
+                              onClick={() => setEditingProveedor(proveedor)}
+                              disabled={!isAdmin}
+                            >
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setDeletingProveedor(proveedor)}
+                              disabled={!isAdmin}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
 
-      <AlertDialog open={!!deletingProveedor} onOpenChange={() => setDeletingProveedor(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar proveedor?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará permanentemente el proveedor "{deletingProveedor?.nombre}". 
-              Esta acción no se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <AlertDialog open={!!deletingProveedor} onOpenChange={() => setDeletingProveedor(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar proveedor?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción eliminará permanentemente el proveedor "{deletingProveedor?.nombre}".
+                Esta acción no se puede deshacer.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
-      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar proveedores seleccionados?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se eliminarán {selectedProveedorIds.length} proveedores seleccionados. Esta acción no se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar proveedores seleccionados?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Se eliminarán {selectedProveedorIds.length} proveedores seleccionados. Esta acción
+                no se puede deshacer.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleBulkDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </RequirePermission>
   );

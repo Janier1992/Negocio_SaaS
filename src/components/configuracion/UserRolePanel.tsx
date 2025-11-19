@@ -2,7 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/newClient";
@@ -16,7 +22,16 @@ interface ProfileRow {
   empresa_id: string | null;
 }
 
-const ROLES = ["admin", "administrativo", "ventas", "inventario", "finanzas", "auxiliar", "empleado", "viewer"] as const;
+const ROLES = [
+  "admin",
+  "administrativo",
+  "ventas",
+  "inventario",
+  "finanzas",
+  "auxiliar",
+  "empleado",
+  "viewer",
+] as const;
 
 type AppRole = (typeof ROLES)[number];
 
@@ -32,9 +47,10 @@ export const UserRolePanel = () => {
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return users;
-    return users.filter(u =>
-      (u.full_name || "").toLowerCase().includes(term) ||
-      (u.email || "").toLowerCase().includes(term)
+    return users.filter(
+      (u) =>
+        (u.full_name || "").toLowerCase().includes(term) ||
+        (u.email || "").toLowerCase().includes(term),
     );
   }, [search, users]);
 
@@ -90,10 +106,7 @@ export const UserRolePanel = () => {
 
   const handleChangeRole = async (user: ProfileRow, newRole: AppRole) => {
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ rol: newRole })
-        .eq("id", user.id);
+      const { error } = await supabase.from("profiles").update({ rol: newRole }).eq("id", user.id);
       if (error) throw error;
 
       const ok = await upsertUserRole(user.id, newRole);
@@ -104,14 +117,14 @@ export const UserRolePanel = () => {
         toast.success("Rol actualizado correctamente");
       }
 
-      setUsers(prev => prev.map(u => (u.id === user.id ? { ...u, rol: newRole } : u)));
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, rol: newRole } : u)));
     } catch (err: any) {
       const msg = String(err?.message || "");
       const friendly = /policy|rls|permission/i.test(msg)
         ? "No tienes permisos para gestionar roles"
         : /Failed to fetch/i.test(msg)
-        ? "Sin conexión con el servidor"
-        : "No se pudo actualizar el rol";
+          ? "Sin conexión con el servidor"
+          : "No se pudo actualizar el rol";
       toast.error(friendly);
     }
   };
@@ -151,8 +164,8 @@ export const UserRolePanel = () => {
       const friendly = /policy|rls|permission/i.test(msg)
         ? "No tienes permisos para asignar usuarios"
         : /Failed to fetch/i.test(msg)
-        ? "Sin conexión con el servidor"
-        : "No se pudo asignar el usuario";
+          ? "Sin conexión con el servidor"
+          : "No se pudo asignar el usuario";
       toast.error(friendly);
     }
   };
@@ -170,15 +183,15 @@ export const UserRolePanel = () => {
         await supabase.from("user_roles").delete().eq("user_id", user.id);
       } catch {}
 
-      setUsers(prev => prev.filter(u => u.id !== user.id));
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
       toast.success("Usuario removido de la empresa");
     } catch (err: any) {
       const msg = String(err?.message || "");
       const friendly = /policy|rls|permission/i.test(msg)
         ? "No tienes permisos para remover usuarios"
         : /Failed to fetch/i.test(msg)
-        ? "Sin conexión con el servidor"
-        : "No se pudo remover el usuario";
+          ? "Sin conexión con el servidor"
+          : "No se pudo remover el usuario";
       toast.error(friendly);
     }
   };
@@ -215,13 +228,23 @@ export const UserRolePanel = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="space-y-2 md:col-span-2">
             <label className="text-sm font-medium">Buscar</label>
-            <Input placeholder="Nombre o email" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input
+              placeholder="Nombre o email"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Asignar por email</label>
             <div className="flex gap-2">
-              <Input placeholder="email@dominio.com" value={emailLookup} onChange={(e) => setEmailLookup(e.target.value)} />
-              <Button onClick={handleAssignByEmail} disabled={!empresaId}>Asignar</Button>
+              <Input
+                placeholder="email@dominio.com"
+                value={emailLookup}
+                onChange={(e) => setEmailLookup(e.target.value)}
+              />
+              <Button onClick={handleAssignByEmail} disabled={!empresaId}>
+                Asignar
+              </Button>
             </div>
           </div>
         </div>
@@ -248,13 +271,18 @@ export const UserRolePanel = () => {
                     <td className="py-2">{u.full_name || "(Sin nombre)"}</td>
                     <td className="py-2">{u.email}</td>
                     <td className="py-2">
-                      <Select value={(u.rol || "empleado") as AppRole} onValueChange={(v) => handleChangeRole(u, v as AppRole)}>
+                      <Select
+                        value={(u.rol || "empleado") as AppRole}
+                        onValueChange={(v) => handleChangeRole(u, v as AppRole)}
+                      >
                         <SelectTrigger className="w-[160px]">
                           <SelectValue placeholder="Selecciona un rol" />
                         </SelectTrigger>
                         <SelectContent>
                           {ROLES.map((r) => (
-                            <SelectItem key={r} value={r}>{r}</SelectItem>
+                            <SelectItem key={r} value={r}>
+                              {r}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

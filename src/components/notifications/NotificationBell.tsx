@@ -2,18 +2,38 @@ import React from "react";
 import { Bell, CheckCheck, Inbox, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useNavigate } from "react-router-dom";
 
 export const NotificationBell: React.FC = () => {
-  const { notifications, unreadCount, markAllRead, markRead, removeNotification, clearNotifications } = useNotifications();
+  const {
+    notifications,
+    unreadCount,
+    markAllRead,
+    markRead,
+    removeNotification,
+    clearNotifications,
+  } = useNotifications();
   const navigate = useNavigate();
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative" aria-label="Notificaciones" data-testid="notification-bell">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative"
+          aria-label="Notificaciones"
+          data-testid="notification-bell"
+        >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
@@ -27,11 +47,23 @@ export const NotificationBell: React.FC = () => {
         <DropdownMenuLabel className="flex items-center justify-between">
           <span>Notificaciones</span>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1" onClick={markAllRead} data-testid="notifications-mark-all">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              onClick={markAllRead}
+              data-testid="notifications-mark-all"
+            >
               <CheckCheck className="h-3.5 w-3.5" />
               Marcar leídas
             </Button>
-            <Button variant="ghost" size="sm" className="gap-1" onClick={clearNotifications} data-testid="notifications-clear-all">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1"
+              onClick={clearNotifications}
+              data-testid="notifications-clear-all"
+            >
               <Trash2 className="h-3.5 w-3.5" />
               Limpiar
             </Button>
@@ -51,7 +83,8 @@ export const NotificationBell: React.FC = () => {
               data-testid="notification-item"
               data-read={n.read ? "true" : "false"}
               onClick={() => {
-                const tipo = n.type === "stock_critico" || n.type === "stock_bajo" ? n.type : undefined;
+                const tipo =
+                  n.type === "stock_critico" || n.type === "stock_bajo" ? n.type : undefined;
                 const params = new URLSearchParams();
                 if (tipo) params.set("tipo", tipo);
                 params.set("estado", "activas");
@@ -75,11 +108,31 @@ export const NotificationBell: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 {!n.read && (
-                  <Button variant="ghost" size="sm" className="p-1 h-6" onClick={(e) => { e.stopPropagation(); markRead(n.id); }} title="Marcar como leída" data-testid="notification-mark-read">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="p-1 h-6"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      markRead(n.id);
+                    }}
+                    title="Marcar como leída"
+                    data-testid="notification-mark-read"
+                  >
                     <Eye className="h-3.5 w-3.5" />
                   </Button>
                 )}
-                <Button variant="ghost" size="sm" className="p-1 h-6" onClick={(e) => { e.stopPropagation(); removeNotification(n.id); }} title="Eliminar" data-testid="notification-delete">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="p-1 h-6"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeNotification(n.id);
+                  }}
+                  title="Eliminar"
+                  data-testid="notification-delete"
+                >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>

@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Loader2 } from "lucide-react";
 
-export const RequirePermission = ({ permission, children }: { permission: string; children: React.ReactNode }) => {
+export const RequirePermission = ({
+  permission,
+  children,
+}: {
+  permission: string;
+  children: React.ReactNode;
+}) => {
   const { hasPermission } = usePermissions();
   const [allowed, setAllowed] = useState<boolean | null>(null);
 
@@ -17,7 +23,9 @@ export const RequirePermission = ({ permission, children }: { permission: string
       }
     };
     check();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [permission, hasPermission]);
 
   if (allowed === null) {

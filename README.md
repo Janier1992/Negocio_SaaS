@@ -58,6 +58,32 @@ npx vitest run
 - Las pruebas clave incluyen lógica de precios y alertas en `tests/*.spec.ts`.
 - Si reintroduces Testing Library y `jsdom`, añade `src/test/setup.ts` y configura `vitest.config.ts` según tus necesidades.
 
+## Auditoría y Optimización
+
+- Seguridad:
+  - `npm audit` genera reporte JSON en `docs/npm-audit.json`.
+  - Ejecuta `npm audit fix` para corregir vulnerabilidades menores.
+- Estilo de código:
+  - `npm run lint` y `npm run lint:fix` (ESLint con reglas TS/React y `eslint-config-prettier`).
+  - `npm run format` y `npm run format:check` (Prettier, config en `.prettierrc`).
+- Rendimiento del bundle:
+  - `npm run analyze` construye y genera `docs/bundle-report.html` (treemap con `rollup-plugin-visualizer`).
+  - Compresión estática `.br` y `.gz` habilitada en producción.
+- Lighthouse (Performance, A11y, SEO, Best Practices, PWA):
+  - `npx lighthouse http://localhost:4173 --output=json --output-path=docs/lighthouse-report.json --quiet --chrome-flags="--headless"`.
+  - Abre `docs/lighthouse-report.json` para métricas detalladas.
+
+Reportes generados:
+
+- `docs/npm-audit.json` — vulnerabilidades de dependencias.
+- `docs/bundle-report.html` — análisis visual del bundle.
+- `docs/lighthouse-report.json` — métricas Lighthouse de la build de producción.
+
+Notas:
+
+- Evita commitear secretos; usa `VITE_*` sólo en el frontend y mantén `SERVICE_ROLE_KEY` exclusivamente en funciones/servidor.
+- `.gitignore` incluye `node_modules`, `dist`, `.env*`, `.vercel` y artefactos de build; los reportes en `docs/` sí se versionan para trazabilidad.
+
 ## Despliegue en GitHub Pages
 
 - Este repositorio incluye `.github/workflows/pages.yml` para construir y publicar automáticamente.
@@ -95,6 +121,7 @@ Pasos para conectar el proyecto a Vercel:
    - En `Project Settings → Domains`, añade tu dominio y verifica.
 
 Notas:
+
 - Si también usas GitHub Pages, recuerda establecer `VITE_BASE` con la subruta del repo en el build de Pages.
 - Para Supabase Auth, configura correctamente las URLs de redirección en `Authentication → URL Configuration` (incluye tu dominio de Vercel y `http://localhost:8080` para desarrollo).
 
@@ -115,6 +142,7 @@ Notas:
   - `npm run pwa:icons` (usa `sharp` para rasterizar `public/favicon.svg`).
 
 Verificación rápida:
+
 - DevTools → Application → Manifest: íconos y campos válidos.
 - DevTools → Application → Service Workers: `sw.js` activo.
 - Lighthouse → PWA ≥ 90.
@@ -278,11 +306,11 @@ Si cambias variables `VITE_...` en `.env`, reinicia el servidor de Vite para que
 - Ejemplo de uso:
 
 ```ts
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL!,
-  import.meta.env.VITE_SUPABASE_ANON_KEY!
+  import.meta.env.VITE_SUPABASE_ANON_KEY!,
 );
 
 export default supabase;
@@ -354,6 +382,7 @@ Archivo de soporte:
 - `src/integrations/supabase/health.ts`: helpers `getSupabaseEnv()` y `checkAuthConnectivity()` para validar configuración y alcance de Supabase Auth.
 
 ### Verificación
+
 - Inicia `npm run dev` y abre `http://localhost:8080/auth`.
 - Registra con un correo nuevo; si queda pendiente, usa “Reenviar confirmación”.
 - Verifica en Supabase → Table Editor → `auditoria` los eventos `auth_email`.
@@ -392,6 +421,7 @@ npx vitest
 - En producción, Vite usa `base: "/MiNegocioPymes/"` y el enrutador `BrowserRouter` toma `import.meta.env.BASE_URL`.
 
 #### Pasos
+
 - En el repositorio `MiNegocioPymes`, ve a Settings → Pages y selecciona “Build and deploy” con GitHub Actions.
 - Añade secretos en Settings → Secrets and variables → Actions:
   - `VITE_SUPABASE_URL`
@@ -400,15 +430,16 @@ npx vitest
 - Tras cada push a `main`, el sitio se actualiza en 1–3 minutos.
 
 #### Troubleshooting
+
 - 404 en rutas internas: confirma que existe `dist/404.html` (lo crea el workflow) y que `base` sea `"/MiNegocioPymes/"`.
 - Assets no cargan: verifica que la URL incluya `/MiNegocioPymes/` y reconstruye (`npm run build`).
 - Errores de CSP: en producción se permite `style-src 'unsafe-inline'` para compatibilidad con GitHub Pages; los scripts inline siguen bloqueados.
 - Datos no cargan: revisa que los secretos de Supabase estén definidos en el repositorio y que el proyecto de Supabase acepte conexiones desde el sitio.
- - 404 de `main.tsx` y `favicon.svg` en Pages:
-   - Síntoma: en consola aparecen 404 para `/src/main.tsx` y `/favicon.svg`.
-   - Causa: rutas absolutas en `index.html` que ignoran la `base` del repositorio.
-   - Corrección: usar rutas relativas en `index.html` (`href="favicon.svg"` y `src="src/main.tsx"`).
-   - Verificación: ejecutar `npm run build` y abrir `https://janier1992.github.io/MiNegocioPymes/`; no deben aparecer 404 en consola.
+- 404 de `main.tsx` y `favicon.svg` en Pages:
+  - Síntoma: en consola aparecen 404 para `/src/main.tsx` y `/favicon.svg`.
+  - Causa: rutas absolutas en `index.html` que ignoran la `base` del repositorio.
+  - Corrección: usar rutas relativas en `index.html` (`href="favicon.svg"` y `src="src/main.tsx"`).
+  - Verificación: ejecutar `npm run build` y abrir `https://janier1992.github.io/MiNegocioPymes/`; no deben aparecer 404 en consola.
 
 ### Checklist de publicación (CSP y entorno)
 
@@ -486,6 +517,6 @@ npx vitest
 
 - Evita almacenar claves sensibles (`SERVICE_ROLE_KEY`) en el frontend.
 - La lógica de UPSERT en CxP usa `ON CONFLICT (compra_id)`: si deseas múltiples CxP por compra, ajusta esa condición y la restricción única.
-#   E R P _ N e g o c i o s P y m e s 
- 
- 
+  #   E R P _ N e g o c i o s P y m e s 
+   
+   

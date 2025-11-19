@@ -38,11 +38,7 @@ export async function bootstrapEmpresaEdge(payload: BootstrapPayload) {
 export async function verifyEmpresaExists(empresaId: string) {
   const id = String(empresaId || "").trim();
   if (!id) return false;
-  const { data, error } = await supabase
-    .from("empresas")
-    .select("id")
-    .eq("id", id)
-    .maybeSingle();
+  const { data, error } = await supabase.from("empresas").select("id").eq("id", id).maybeSingle();
   if (error) return false;
   return Boolean(data?.id);
 }

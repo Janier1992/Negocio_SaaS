@@ -27,13 +27,12 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || Deno.env.get("PROJECT_URL")
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY");
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error("Faltan secretos: SUPABASE_URL/PROJECT_URL y SUPABASE_SERVICE_ROLE_KEY/SERVICE_ROLE_KEY");
+  console.error(
+    "Faltan secretos: SUPABASE_URL/PROJECT_URL y SUPABASE_SERVICE_ROLE_KEY/SERVICE_ROLE_KEY",
+  );
 }
 
-const supabaseAdmin = createClient(
-  SUPABASE_URL!,
-  SERVICE_KEY!,
-);
+const supabaseAdmin = createClient(SUPABASE_URL!, SERVICE_KEY!);
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const passwordOk = (p: string) => /^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(p);
@@ -65,7 +64,10 @@ serve(async (req) => {
     let caller: { user?: { id: string } } = {};
     if (!token) {
       // Permitir bootstrap sin auth si el proyecto no tiene usuarios
-      const { data: usersList, error: listErr } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1 });
+      const { data: usersList, error: listErr } = await supabaseAdmin.auth.admin.listUsers({
+        page: 1,
+        perPage: 1,
+      });
       if (listErr) {
         return json({ error: "internal_error", message: listErr.message }, 500);
       }
@@ -162,7 +164,10 @@ serve(async (req) => {
     const rolText = roles?.[0] || null;
     const { error: upErr } = await supabaseAdmin
       .from("profiles")
-      .upsert({ id: userId, email, full_name, empresa_id: empresaId, username, rol: rolText }, { onConflict: "id" });
+      .upsert(
+        { id: userId, email, full_name, empresa_id: empresaId, username, rol: rolText },
+        { onConflict: "id" },
+      );
     if (upErr) {
       // Not fatal for login, but return 500 to surface configuration issues
       return json({ error: "profile_upsert_failed", message: upErr.message }, 500);
@@ -172,8 +177,11 @@ serve(async (req) => {
     if (roles && roles.length) {
       // Ensure role keys exist in catalog to satisfy foreign key on user_roles
       try {
-        const roleRows = roles.map((r) => ({ key: r, description: r === 'admin' ? 'Administrador' : (r.charAt(0).toUpperCase() + r.slice(1)) }));
-        await supabaseAdmin.from('roles').upsert(roleRows, { onConflict: 'key' });
+        const roleRows = roles.map((r) => ({
+          key: r,
+          description: r === "admin" ? "Administrador" : r.charAt(0).toUpperCase() + r.slice(1),
+        }));
+        await supabaseAdmin.from("roles").upsert(roleRows, { onConflict: "key" });
       } catch (_seedErr) {
         // non-fatal; RPC may still work if keys exist
       }

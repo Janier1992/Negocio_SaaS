@@ -9,11 +9,16 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import { checkAuthConnectivity, getSupabaseEnv, formatAuthErrorMessage } from "@/integrations/supabase/health";
+import {
+  checkAuthConnectivity,
+  getSupabaseEnv,
+  formatAuthErrorMessage,
+} from "@/integrations/supabase/health";
 
-const SITE_URL = import.meta.env.MODE === 'development'
-  ? window.location.origin
-  : (import.meta.env.VITE_PUBLIC_SITE_URL || window.location.origin);
+const SITE_URL =
+  import.meta.env.MODE === "development"
+    ? window.location.origin
+    : import.meta.env.VITE_PUBLIC_SITE_URL || window.location.origin;
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -39,13 +44,19 @@ export default function Auth() {
     // Check if user is already logged in
     const checkUser = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
         if (error) {
           const msg = String(error?.message || "").toLowerCase();
-          const isInvalidRefresh = msg.includes("invalid refresh token") || msg.includes("refresh token not found");
+          const isInvalidRefresh =
+            msg.includes("invalid refresh token") || msg.includes("refresh token not found");
           if (isInvalidRefresh) {
             // Limpia estado local para evitar intentos de refresh y ruido en consola
-            try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
+            try {
+              await supabase.auth.signOut({ scope: "local" });
+            } catch {}
           }
         }
         if (session) {
@@ -53,9 +64,12 @@ export default function Auth() {
         }
       } catch (err: any) {
         const msg = String(err?.message || "").toLowerCase();
-        const isInvalidRefresh = msg.includes("invalid refresh token") || msg.includes("refresh token not found");
+        const isInvalidRefresh =
+          msg.includes("invalid refresh token") || msg.includes("refresh token not found");
         if (isInvalidRefresh) {
-          try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
+          try {
+            await supabase.auth.signOut({ scope: "local" });
+          } catch {}
         }
         // No interrumpir la UI de login
       }
@@ -81,7 +95,9 @@ export default function Auth() {
 
   useEffect(() => {
     // Detectar flujo de recuperación desde el enlace de correo
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setRecoveryMode(true);
         setIsLogin(true);
@@ -129,7 +145,9 @@ export default function Auth() {
         const trimmedBusinessName = businessName.trim();
 
         if (!trimmedBusinessName || trimmedBusinessName.length < 2) {
-          throw new Error("El nombre del negocio es obligatorio y debe tener al menos 2 caracteres");
+          throw new Error(
+            "El nombre del negocio es obligatorio y debe tener al menos 2 caracteres",
+          );
         }
         if (!trimmedFullName || trimmedFullName.length < 2) {
           throw new Error("El nombre completo es obligatorio y debe tener al menos 2 caracteres");
@@ -138,7 +156,9 @@ export default function Auth() {
           throw new Error("Correo inválido");
         }
         if (!validatePassword(trimmedPassword)) {
-          throw new Error("La contraseña debe tener mínimo 10 caracteres, mayúscula, minúscula, número y símbolo");
+          throw new Error(
+            "La contraseña debe tener mínimo 10 caracteres, mayúscula, minúscula, número y símbolo",
+          );
         }
 
         try {
@@ -152,7 +172,10 @@ export default function Auth() {
           );
           if (res?.ok) {
             // Iniciar sesión inmediatamente y navegar. Activamos estado de hidratación post‑creación.
-            const { error: loginErr } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password: trimmedPassword });
+            const { error: loginErr } = await supabase.auth.signInWithPassword({
+              email: trimmedEmail,
+              password: trimmedPassword,
+            });
             if (loginErr) throw loginErr;
             toast.success("Cuenta y empresa creadas. Sesión iniciada");
             navigate(redirectPath, { state: { hydratingEmpresa: true, postCreate: true } });
@@ -160,9 +183,15 @@ export default function Auth() {
           }
         } catch (bootErr: any) {
           const emsg = String(bootErr?.message || bootErr?.error || "").toLowerCase();
-          const isEdgeDown = emsg.includes("err_failed") || emsg.includes("failed to fetch") || emsg.includes("fetch") || emsg.includes("network");
+          const isEdgeDown =
+            emsg.includes("err_failed") ||
+            emsg.includes("failed to fetch") ||
+            emsg.includes("fetch") ||
+            emsg.includes("network");
           if (isEdgeDown) {
-            toast.info("No se pudo conectar con la función de registro (Edge). Usaremos el registro estándar.");
+            toast.info(
+              "No se pudo conectar con la función de registro (Edge). Usaremos el registro estándar.",
+            );
           }
           // Fallback a signUp estándar si la función no está disponible
           const { data, error } = await supabase.auth.signUp({
@@ -185,9 +214,12 @@ export default function Auth() {
                 await svc.bootstrapEmpresaRpc({ nombre: trimmedBusinessName, descripcion: null });
               } catch (e: any) {
                 const msg = String(e?.message || "").toLowerCase();
-                const isSchemaCache = msg.includes("schema cache") || (e?.code === "PGRST205");
+                const isSchemaCache = msg.includes("schema cache") || e?.code === "PGRST205";
                 if (isSchemaCache) {
-                  await svc.bootstrapEmpresaEdge({ nombre: trimmedBusinessName, descripcion: null });
+                  await svc.bootstrapEmpresaEdge({
+                    nombre: trimmedBusinessName,
+                    descripcion: null,
+                  });
                 } else {
                   throw e;
                 }
@@ -206,11 +238,17 @@ export default function Auth() {
             } else {
               const low = String(resend.error || "").toLowerCase();
               if (/redirect.*(invalid|not allowed|accepted)/i.test(low)) {
-                toast.error("Dominio de redirección no permitido. Añade http://localhost:8080 en Authentication → URL Configuration → Additional Redirect URLs.");
+                toast.error(
+                  "Dominio de redirección no permitido. Añade http://localhost:8080 en Authentication → URL Configuration → Additional Redirect URLs.",
+                );
               } else if (/smtp|provider|unauthorized|forbidden/i.test(low)) {
-                toast.error("Servicio de correo no configurado o sin permisos en Supabase. Revisa SMTP/Proveedor en Authentication → Email.");
+                toast.error(
+                  "Servicio de correo no configurado o sin permisos en Supabase. Revisa SMTP/Proveedor en Authentication → Email.",
+                );
               } else {
-                toast.info("Registro iniciado. Revisa tu correo para confirmar la cuenta (puede tardar unos minutos).");
+                toast.info(
+                  "Registro iniciado. Revisa tu correo para confirmar la cuenta (puede tardar unos minutos).",
+                );
               }
             }
             setIsLogin(true);
@@ -234,7 +272,10 @@ export default function Auth() {
           );
           if (res?.ok) {
             // Iniciar sesión inmediatamente
-            const { error: loginErr } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password: password.trim() });
+            const { error: loginErr } = await supabase.auth.signInWithPassword({
+              email: email.trim().toLowerCase(),
+              password: password.trim(),
+            });
             if (loginErr) throw loginErr;
             toast.success("Cuenta creada exitosamente (bootstrap) y sesión iniciada");
             navigate(redirectPath);
@@ -248,12 +289,16 @@ export default function Auth() {
           );
         }
       } else if (/redirect.*(invalid|not allowed|accepted)/i.test(msg)) {
-        toast.error("Dominio de redirección no permitido en Supabase. Añade http://localhost:8080 en Authentication → URL Configuration → Additional Redirect URLs.");
+        toast.error(
+          "Dominio de redirección no permitido en Supabase. Añade http://localhost:8080 en Authentication → URL Configuration → Additional Redirect URLs.",
+        );
       } else if (/already|exist/i.test(low)) {
         toast.error("El correo ya está registrado. Prueba con otro correo o inicia sesión.");
       } else if (/network|failed to fetch|err_failed/i.test(low)) {
         const env = getSupabaseEnv();
-        const hint = env.isConfigured ? "Revisa conectividad o CSP" : "Faltan VITE_SUPABASE_URL/ANON_KEY";
+        const hint = env.isConfigured
+          ? "Revisa conectividad o CSP"
+          : "Faltan VITE_SUPABASE_URL/ANON_KEY";
         toast.error(`No se pudo conectar al servicio de autenticación. ${hint}.`);
       } else {
         toast.error(msg || "Ocurrió un error");
@@ -278,8 +323,8 @@ export default function Auth() {
         const friendly = /redirect.*(invalid|not allowed|accepted)/i.test(msg)
           ? "Dominio de redirección no permitido. Añade http://localhost:8080 en Authentication → URL Configuration."
           : /smtp|provider|unauthorized|forbidden/i.test(msg)
-          ? "Servicio de correo no configurado o sin permisos en Supabase. Revisa SMTP/Proveedor en Authentication → Email."
-          : msg || "No se pudo reenviar el correo";
+            ? "Servicio de correo no configurado o sin permisos en Supabase. Revisa SMTP/Proveedor en Authentication → Email."
+            : msg || "No se pudo reenviar el correo";
         toast.error(friendly);
       }
     } catch (err: any) {
@@ -314,7 +359,9 @@ export default function Auth() {
 
   const handleUpdatePassword = async () => {
     if (!validatePassword(newPassword)) {
-      toast.error("La nueva contraseña debe tener mínimo 10 caracteres, mayúscula, minúscula, número y símbolo");
+      toast.error(
+        "La nueva contraseña debe tener mínimo 10 caracteres, mayúscula, minúscula, número y símbolo",
+      );
       return;
     }
     if (newPassword !== newPassword2) {
@@ -345,10 +392,9 @@ export default function Auth() {
             {isLogin ? "Iniciar Sesión" : "Crear Cuenta"}
           </CardTitle>
           <CardDescription className="text-center">
-            {isLogin 
+            {isLogin
               ? "Ingresa tus credenciales para acceder al sistema"
-              : "Completa el formulario para crear tu cuenta"
-            }
+              : "Completa el formulario para crear tu cuenta"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -379,7 +425,7 @@ export default function Auth() {
                 </div>
               </>
             )}
-            
+
             <div className="space-y-2">
               <Label htmlFor="email">Correo Electrónico</Label>
               <Input
@@ -405,18 +451,24 @@ export default function Auth() {
               />
             </div>
 
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full"
-              disabled={isLoading || !envOk || (!isLogin && (!validateEmail(email) || !validatePassword(password)))}
+              disabled={
+                isLoading ||
+                !envOk ||
+                (!isLogin && (!validateEmail(email) || !validatePassword(password)))
+              }
             >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Procesando...
                 </>
+              ) : isLogin ? (
+                "Iniciar Sesión"
               ) : (
-                isLogin ? "Iniciar Sesión" : "Crear Cuenta"
+                "Crear Cuenta"
               )}
             </Button>
           </form>
@@ -428,7 +480,11 @@ export default function Auth() {
                 onClick={handleResetRequest}
                 className="text-primary hover:underline"
                 disabled={resetLoading || !validateEmail(email || "")}
-                title={!email ? "Ingresa tu correo arriba para recuperar" : "Enviar enlace de recuperación"}
+                title={
+                  !email
+                    ? "Ingresa tu correo arriba para recuperar"
+                    : "Enviar enlace de recuperación"
+                }
               >
                 {resetLoading ? "Enviando enlace…" : "¿Olvidaste tu contraseña? Recuperar"}
               </button>
@@ -469,7 +525,11 @@ export default function Auth() {
                     "Actualizar contraseña"
                   )}
                 </Button>
-                <Button variant="outline" onClick={() => setRecoveryMode(false)} disabled={resetLoading}>
+                <Button
+                  variant="outline"
+                  onClick={() => setRecoveryMode(false)}
+                  disabled={resetLoading}
+                >
                   Cancelar
                 </Button>
               </div>
@@ -503,10 +563,7 @@ export default function Auth() {
               onClick={() => setIsLogin(!isLogin)}
               className="text-primary hover:underline"
             >
-              {isLogin 
-                ? "¿No tienes cuenta? Regístrate" 
-                : "¿Ya tienes cuenta? Inicia sesión"
-              }
+              {isLogin ? "¿No tienes cuenta? Regístrate" : "¿Ya tienes cuenta? Inicia sesión"}
             </button>
           </div>
         </CardContent>

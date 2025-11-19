@@ -30,8 +30,13 @@ export default function StockAlertsPanel() {
           .in("id", ids);
         if (!error) {
           const map = new Map<string, ProductoInfo>();
-          for (const p of (data || [])) {
-            map.set(String(p.id), { id: String(p.id), codigo: p.codigo, nombre: p.nombre, stock: p.stock });
+          for (const p of data || []) {
+            map.set(String(p.id), {
+              id: String(p.id),
+              codigo: p.codigo,
+              nombre: p.nombre,
+              stock: p.stock,
+            });
           }
           setProductosMap(map);
         }
@@ -48,26 +53,28 @@ export default function StockAlertsPanel() {
     if (!empresaId) return;
     const ch = subscribeAlerts(empresaId, () => load());
     return () => {
-      try { supabase.removeChannel(ch); } catch {}
+      try {
+        supabase.removeChannel(ch);
+      } catch {}
     };
   }, [empresaId]);
 
   const getColorClasses = (tipo: string) =>
-    tipo === "stock_critico"
-      ? "border-red-300 bg-red-50"
-      : "border-yellow-300 bg-yellow-50";
+    tipo === "stock_critico" ? "border-red-300 bg-red-50" : "border-yellow-300 bg-yellow-50";
 
   const getBadge = (tipo: string) => (
-    <Badge className={tipo === "stock_critico" ? "bg-red-600 text-white" : "bg-yellow-500 text-white"}>
+    <Badge
+      className={tipo === "stock_critico" ? "bg-red-600 text-white" : "bg-yellow-500 text-white"}
+    >
       {tipo === "stock_critico" ? "Crítico" : "Bajo"}
     </Badge>
   );
 
-  const unreadCount = useMemo(() => alertas.filter(a => !a.leida).length, [alertas]);
+  const unreadCount = useMemo(() => alertas.filter((a) => !a.leida).length, [alertas]);
 
   const marcarLeida = async (id: string) => {
     await markAlertRead(id, true);
-    setAlertas(prev => prev.map(a => a.id === id ? { ...a, leida: true } : a));
+    setAlertas((prev) => prev.map((a) => (a.id === id ? { ...a, leida: true } : a)));
   };
 
   return (
@@ -76,7 +83,11 @@ export default function StockAlertsPanel() {
         <CardTitle className="flex items-center gap-2">
           <TriangleAlert className="h-5 w-5 text-yellow-600" />
           Alertas de Stock
-          {unreadCount > 0 && <Badge variant="secondary" className="ml-2">{unreadCount} nuevas</Badge>}
+          {unreadCount > 0 && (
+            <Badge variant="secondary" className="ml-2">
+              {unreadCount} nuevas
+            </Badge>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -102,16 +113,20 @@ export default function StockAlertsPanel() {
                           <>
                             <span className="font-medium">{p.nombre}</span>
                             {p.codigo && <span className="ml-2">Código: {p.codigo}</span>}
-                            <span className="ml-2">Stock: {p.stock ?? '-'}</span>
+                            <span className="ml-2">Stock: {p.stock ?? "-"}</span>
                           </>
                         ) : (
                           <>{a.mensaje}</>
                         )}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">{new Date(a.created_at).toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {new Date(a.created_at).toLocaleString()}
+                      </div>
                     </div>
                     {!a.leida && (
-                      <Button variant="outline" size="sm" onClick={() => marcarLeida(a.id)}>Marcar leída</Button>
+                      <Button variant="outline" size="sm" onClick={() => marcarLeida(a.id)}>
+                        Marcar leída
+                      </Button>
                     )}
                   </div>
                 </div>

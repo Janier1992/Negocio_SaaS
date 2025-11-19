@@ -12,7 +12,7 @@ export const useExcelUpload = () => {
 
   const uploadProveedores = async (file: File) => {
     if (!empresaId) throw new Error("No se encontró empresa asociada");
-    
+
     setLoading(true);
     try {
       const data = await file.arrayBuffer();
@@ -34,7 +34,7 @@ export const useExcelUpload = () => {
         .select("nombre")
         .eq("empresa_id", empresaId);
 
-      const existingNames = new Set(existingProveedores?.map(p => p.nombre.toLowerCase()) || []);
+      const existingNames = new Set(existingProveedores?.map((p) => p.nombre.toLowerCase()) || []);
 
       const newProveedores = jsonData
         .map((row: any) => ({
@@ -45,7 +45,7 @@ export const useExcelUpload = () => {
           direccion: row.direccion ? sanitizeCell(row.direccion) : null,
           empresa_id: empresaId,
         }))
-        .filter(p => p.nombre && !existingNames.has(p.nombre.toLowerCase()));
+        .filter((p) => p.nombre && !existingNames.has(p.nombre.toLowerCase()));
 
       if (newProveedores.length === 0) {
         throw new Error("Todos los proveedores ya existen");
@@ -65,7 +65,7 @@ export const useExcelUpload = () => {
 
   const uploadProductos = async (file: File, categorias: any[], proveedores: any[]) => {
     if (!empresaId) throw new Error("No se encontró empresa asociada");
-    
+
     setLoading(true);
     try {
       const data = await file.arrayBuffer();
@@ -76,7 +76,13 @@ export const useExcelUpload = () => {
       if (jsonData.length === 0) throw new Error("El archivo está vacío");
 
       // Delegar en función pura para facilitar testeo y evitar hooks
-      return await uploadProductosCore(jsonData as any[], empresaId, supabase, categorias, proveedores);
+      return await uploadProductosCore(
+        jsonData as any[],
+        empresaId,
+        supabase,
+        categorias,
+        proveedores,
+      );
     } finally {
       setLoading(false);
     }
@@ -84,7 +90,7 @@ export const useExcelUpload = () => {
 
   const uploadVentas = async (file: File) => {
     if (!empresaId) throw new Error("No se encontró empresa asociada");
-    
+
     setLoading(true);
     try {
       const data = await file.arrayBuffer();
@@ -96,7 +102,12 @@ export const useExcelUpload = () => {
 
       // Validar columnas
       const firstRow: any = jsonData[0];
-      if (!firstRow.producto_codigo || !firstRow.cantidad || !firstRow.precio_unitario || !firstRow.metodo_pago) {
+      if (
+        !firstRow.producto_codigo ||
+        !firstRow.cantidad ||
+        !firstRow.precio_unitario ||
+        !firstRow.metodo_pago
+      ) {
         throw new Error("Faltan columnas obligatorias");
       }
 
@@ -106,20 +117,22 @@ export const useExcelUpload = () => {
         .select("id, codigo, stock")
         .eq("empresa_id", empresaId);
 
-      const productoMap = new Map(productos?.map(p => [p.codigo.toLowerCase(), p]) || []);
+      const productoMap = new Map(productos?.map((p) => [p.codigo.toLowerCase(), p]) || []);
 
       // Obtener usuario actual
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuario no autenticado");
 
       // Agrupar ventas por fecha y cliente
       const ventasAgrupadas = new Map<string, any[]>();
-      
+
       for (const row of jsonData) {
         const rowData = row as any;
         const codigo = sanitizeCell(rowData.producto_codigo).toLowerCase();
         const producto = productoMap.get(codigo);
-        
+
         if (!producto) {
           console.warn(`Producto ${rowData.producto_codigo} no encontrado, omitiendo`);
           continue;
@@ -127,10 +140,12 @@ export const useExcelUpload = () => {
 
         const cantidad = parseInt(String(rowData.cantidad));
         if (cantidad > producto.stock) {
-          throw new Error(`Stock insuficiente para ${rowData.producto_codigo}. Disponible: ${producto.stock}`);
+          throw new Error(
+            `Stock insuficiente para ${rowData.producto_codigo}. Disponible: ${producto.stock}`,
+          );
         }
 
-        const key = `${sanitizeCell(rowData.fecha || new Date().toISOString().split('T')[0])}_${sanitizeCell(rowData.cliente || 'General')}`;
+        const key = `${sanitizeCell(rowData.fecha || new Date().toISOString().split("T")[0])}_${sanitizeCell(rowData.cliente || "General")}`;
         if (!ventasAgrupadas.has(key)) {
           ventasAgrupadas.set(key, []);
         }
@@ -151,7 +166,7 @@ export const useExcelUpload = () => {
       // Insertar ventas agrupadas
       for (const [key, items] of ventasAgrupadas) {
         const total = items.reduce((sum, item) => sum + item.subtotal, 0);
-        
+
         // Insertar venta
         const { data: venta, error: ventaError } = await supabase
           .from("ventas")
@@ -169,7 +184,7 @@ export const useExcelUpload = () => {
         if (ventaError) throw ventaError;
 
         // Insertar detalles
-        const detalles = items.map(item => ({
+        const detalles = items.map((item) => ({
           venta_id: venta.id,
           producto_id: item.producto_id,
           cantidad: item.cantidad,
@@ -177,16 +192,14 @@ export const useExcelUpload = () => {
           subtotal: item.subtotal,
         }));
 
-        const { error: detalleError } = await supabase
-          .from("ventas_detalle")
-          .insert(detalles);
+        const { error: detalleError } = await supabase.from("ventas_detalle").insert(detalles);
 
         if (detalleError) throw detalleError;
 
         // Actualizar stock
         for (const item of items) {
           const producto = productoMap.get(
-            productos?.find(p => p.id === item.producto_id)?.codigo.toLowerCase() || ""
+            productos?.find((p) => p.id === item.producto_id)?.codigo.toLowerCase() || "",
           );
           if (producto) {
             await supabase
@@ -200,7 +213,11 @@ export const useExcelUpload = () => {
         try {
           const nombreCliente = sanitizeCell(items[0].cliente || "");
           if (nombreCliente) {
-            const nowIso = venta.created_at ? new Date(venta.created_at).toISOString() : (items[0].fecha ? new Date(items[0].fecha).toISOString() : new Date().toISOString());
+            const nowIso = venta.created_at
+              ? new Date(venta.created_at).toISOString()
+              : items[0].fecha
+                ? new Date(items[0].fecha).toISOString()
+                : new Date().toISOString();
             const { data: existing } = await supabase
               .from("clientes")
               .select("id, total_comprado, compras_count, fecha_primera_compra")
@@ -209,16 +226,14 @@ export const useExcelUpload = () => {
               .maybeSingle();
 
             if (!existing) {
-              await supabase
-                .from("clientes")
-                .insert({
-                  empresa_id: empresaId,
-                  nombre: nombreCliente,
-                  fecha_primera_compra: nowIso,
-                  fecha_ultima_compra: nowIso,
-                  total_comprado: Number(total || 0),
-                  compras_count: 1,
-                });
+              await supabase.from("clientes").insert({
+                empresa_id: empresaId,
+                nombre: nombreCliente,
+                fecha_primera_compra: nowIso,
+                fecha_ultima_compra: nowIso,
+                total_comprado: Number(total || 0),
+                compras_count: 1,
+              });
             } else {
               await supabase
                 .from("clientes")

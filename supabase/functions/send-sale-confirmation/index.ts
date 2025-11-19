@@ -24,7 +24,12 @@ const supabaseAdmin = createClient(
 );
 
 const html = (m: Message) => {
-  const itemsRows = m.items.map(i => `<tr><td>${i.nombre}</td><td style="text-align:center">${i.cantidad}</td><td style="text-align:right">$${i.precio.toFixed(2)}</td></tr>`).join("");
+  const itemsRows = m.items
+    .map(
+      (i) =>
+        `<tr><td>${i.nombre}</td><td style="text-align:center">${i.cantidad}</td><td style="text-align:right">$${i.precio.toFixed(2)}</td></tr>`,
+    )
+    .join("");
   return `
     <div style="font-family:system-ui, sans-serif;">
       <h2>Confirmación de tu compra</h2>
@@ -49,7 +54,7 @@ const text = (m: Message) => {
     `Venta #${m.ventaId}`,
     `Método de pago: ${m.metodoPago}`,
     `Items:`,
-    ...m.items.map(i => ` - ${i.nombre} x${i.cantidad} $${i.precio.toFixed(2)}`),
+    ...m.items.map((i) => ` - ${i.nombre} x${i.cantidad} $${i.precio.toFixed(2)}`),
     `Total: $${m.total.toFixed(2)}`,
     `Dirección: ${m.direccion}`,
     `Gracias por tu compra`,

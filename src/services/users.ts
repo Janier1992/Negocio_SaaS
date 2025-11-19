@@ -11,7 +11,8 @@ export type AppRole =
   | "viewer";
 
 export const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-export const validatePassword = (p: string) => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,}$/.test(p);
+export const validatePassword = (p: string) =>
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,}$/.test(p);
 
 export async function ensureAdminAccessForEmail(email: string): Promise<boolean> {
   const target = email.trim().toLowerCase();
@@ -97,14 +98,7 @@ export async function adminCreateUser(
     if (!isBootstrap) {
       throw edgeFunctionError;
     }
-    return await adminCreateUserFallback(
-      email,
-      password,
-      fullName,
-      roles,
-      username,
-      businessName
-    );
+    return await adminCreateUserFallback(email, password, fullName, roles, username, businessName);
   }
 }
 
@@ -119,14 +113,16 @@ async function adminCreateUserFallback(
   // Verificar si hay usuarios existentes para determinar si es bootstrap
   const { data: existingUsers, error: listError } = await supabase.auth.admin.listUsers({
     page: 1,
-    perPage: 1
+    perPage: 1,
   });
 
   const isBootstrap = !listError && (!existingUsers?.users || existingUsers.users.length === 0);
-  
+
   if (!isBootstrap) {
     // Verificar permisos del usuario actual
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
     if (!currentUser) {
       throw new Error("unauthorized");
     }
@@ -146,9 +142,9 @@ async function adminCreateUserFallback(
     email: email.trim().toLowerCase(),
     password,
     email_confirm: true, // Auto-confirmar para permitir login inmediato
-    user_metadata: { 
+    user_metadata: {
       full_name: fullName,
-      created_by: isBootstrap ? "bootstrap" : "admin_fallback"
+      created_by: isBootstrap ? "bootstrap" : "admin_fallback",
     },
   });
 
@@ -167,7 +163,7 @@ async function adminCreateUserFallback(
 
   // Obtener empresa_id del usuario actual o crear empresa si es bootstrap
   let empresaId: string | null = null;
-  
+
   if (isBootstrap && businessName?.trim()) {
     // Crear empresa en bootstrap
     const { data: empresa, error: empresaError } = await supabase
@@ -175,37 +171,40 @@ async function adminCreateUserFallback(
       .insert({ nombre: businessName.trim() })
       .select("id")
       .single();
-    
+
     if (!empresaError && empresa) {
       empresaId = empresa.id;
     }
   } else if (!isBootstrap) {
     // Obtener empresa del usuario actual
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
     if (currentUser) {
       const { data: profile } = await supabase
         .from("profiles")
         .select("empresa_id")
         .eq("id", currentUser.id)
         .maybeSingle();
-      
+
       empresaId = profile?.empresa_id || null;
     }
   }
 
   // Crear/actualizar perfil
   const rolText = roles?.[0] || "empleado";
-  const { error: profileError } = await supabase
-    .from("profiles")
-    .upsert({
+  const { error: profileError } = await supabase.from("profiles").upsert(
+    {
       id: userId,
       email: email.trim().toLowerCase(),
       full_name: fullName,
       empresa_id: empresaId,
       username: username,
       rol: rolText,
-      nombre_empresa: businessName || "Mi Empresa" // Incluir nombre_empresa
-    }, { onConflict: "id" });
+      nombre_empresa: businessName || "Mi Empresa", // Incluir nombre_empresa
+    },
+    { onConflict: "id" },
+  );
 
   if (profileError) {
     throw new Error(`profile_upsert_failed: ${profileError.message}`);
@@ -231,7 +230,12 @@ async function adminCreateUserFallback(
       empresa_id: empresaId,
       action: isBootstrap ? "bootstrap_user_create_fallback" : "admin_user_create_fallback",
       entity: "auth.users",
-      details: { email: email.trim().toLowerCase(), full_name: fullName, roles, bootstrap: isBootstrap },
+      details: {
+        email: email.trim().toLowerCase(),
+        full_name: fullName,
+        roles,
+        bootstrap: isBootstrap,
+      },
       actor_id: isBootstrap ? null : (await supabase.auth.getUser()).data.user?.id || null,
     });
   } catch (auditError) {

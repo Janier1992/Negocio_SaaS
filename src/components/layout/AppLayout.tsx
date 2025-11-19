@@ -18,7 +18,9 @@ export const AppLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { empresaId, loading, refetch } = useUserProfile();
-  const [hydrationActive, setHydrationActive] = useState<boolean>(Boolean(location.state?.hydratingEmpresa || location.state?.postCreate));
+  const [hydrationActive, setHydrationActive] = useState<boolean>(
+    Boolean(location.state?.hydratingEmpresa || location.state?.postCreate),
+  );
   const [empresaNombre, setEmpresaNombre] = useState<string>("Sistema de Gestión ERP");
 
   // Activar hidratación si venimos con estado post-creación, y mantenerla entre rutas
@@ -85,14 +87,14 @@ export const AppLayout = () => {
     const channel = supabase
       .channel(`empresa-header-${empresaId}`)
       .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'empresas', filter: `id=eq.${empresaId}` },
+        "postgres_changes",
+        { event: "*", schema: "public", table: "empresas", filter: `id=eq.${empresaId}` },
         (payload) => {
           const newNombre = (payload?.new as any)?.nombre;
-          if (typeof newNombre === 'string' && newNombre.trim()) {
+          if (typeof newNombre === "string" && newNombre.trim()) {
             setEmpresaNombre(newNombre);
           }
-        }
+        },
       )
       .subscribe();
 
@@ -133,8 +135,8 @@ export const AppLayout = () => {
               <NotificationBell />
               <ThemeToggle />
               {/* Logout solo visible en escritorio */}
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="sm"
                 onClick={handleLogout}
                 className="gap-2 hidden md:flex"
@@ -146,33 +148,39 @@ export const AppLayout = () => {
           </header>
           <main className="flex-1 py-4 sm:py-6 pb-16 md:pb-0">
             <div className="app-container">
-            {/* Gate content behind empresaId presence */}
-            {loading ? (
-              <div className="flex items-center justify-center h-96">Cargando...</div>
-            ) : !empresaId ? (
-              // Si venimos de una creación reciente (éxito o timeout), mostrar overlay de hidratación.
-              hydrationActive ? (
-                <div className="relative">
-                  <div className="flex items-center justify-center h-96">Preparando módulos…</div>
-                  <div className="fixed inset-0 z-40 pointer-events-none flex items-center justify-center">
-                    <div className="rounded-lg bg-background/90 border p-6 shadow-xl text-center">
-                      <p className="text-sm text-muted-foreground">Hidratando tu perfil de empresa</p>
-                      <p className="mt-2 font-medium">Cargando módulos…</p>
+              {/* Gate content behind empresaId presence */}
+              {loading ? (
+                <div className="flex items-center justify-center h-96">Cargando...</div>
+              ) : !empresaId ? (
+                // Si venimos de una creación reciente (éxito o timeout), mostrar overlay de hidratación.
+                hydrationActive ? (
+                  <div className="relative">
+                    <div className="flex items-center justify-center h-96">Preparando módulos…</div>
+                    <div className="fixed inset-0 z-40 pointer-events-none flex items-center justify-center">
+                      <div className="rounded-lg bg-background/90 border p-6 shadow-xl text-center">
+                        <p className="text-sm text-muted-foreground">
+                          Hidratando tu perfil de empresa
+                        </p>
+                        <p className="mt-2 font-medium">Cargando módulos…</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-96 text-center">
-                  <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground">No hay empresa asociada a tu usuario.</p>
-                    <p className="text-sm">Puedes crearla desde Configuración.</p>
-                    <Button onClick={() => navigate('/configuracion')} variant="secondary">Ir a Configuración</Button>
+                ) : (
+                  <div className="flex items-center justify-center h-96 text-center">
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        No hay empresa asociada a tu usuario.
+                      </p>
+                      <p className="text-sm">Puedes crearla desde Configuración.</p>
+                      <Button onClick={() => navigate("/configuracion")} variant="secondary">
+                        Ir a Configuración
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              )
+                )
               ) : (
-              <Outlet />
-            )}
+                <Outlet />
+              )}
             </div>
           </main>
         </div>

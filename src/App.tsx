@@ -53,7 +53,13 @@ const AppInner = () => {
               <Routes>
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/invitaciones/aceptar" element={<InvitacionesAceptar />} />
-                <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                <Route
+                  element={
+                    <ProtectedRoute>
+                      <AppLayout />
+                    </ProtectedRoute>
+                  }
+                >
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/inventario" element={<Inventario />} />
                   <Route path="/ventas" element={<Ventas />} />

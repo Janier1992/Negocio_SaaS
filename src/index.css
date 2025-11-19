@@ -79,7 +79,7 @@ All colors MUST be HSL.
     --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    
+
     /* Transitions */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -143,9 +143,12 @@ All colors MUST be HSL.
     @apply bg-background text-foreground overflow-x-hidden;
   }
 
-  img, svg, video, canvas { 
+  img,
+  svg,
+  video,
+  canvas {
     max-width: 100%;
-    height: auto; 
+    height: auto;
   }
 }
 
@@ -167,6 +170,11 @@ All colors MUST be HSL.
     touch-action: pan-x pan-y;
     -ms-touch-action: pan-x pan-y;
   }
-  .no-scrollbar::-webkit-scrollbar { display: none; }
-  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }

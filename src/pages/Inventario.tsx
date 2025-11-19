@@ -34,7 +34,7 @@ const Inventario = () => {
   const [categorias, setCategorias] = useState<any[]>([]);
   const [proveedores, setProveedores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-// Eliminado: searchTerm (DataTable gestiona la búsqueda global)
+  // Eliminado: searchTerm (DataTable gestiona la búsqueda global)
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [deletingProduct, setDeletingProduct] = useState<any>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
@@ -51,23 +51,19 @@ const Inventario = () => {
 
   const fetchData = async () => {
     if (!empresaId) return;
-    
+
     setLoading(true);
     try {
       const [productosRes, categoriasRes, proveedoresRes] = await Promise.all([
         supabase
           .from("productos")
-          .select("id,codigo,nombre,descripcion,precio,stock,stock_minimo,categoria_id,proveedor_id,categorias(nombre),proveedores(nombre)")
+          .select(
+            "id,codigo,nombre,descripcion,precio,stock,stock_minimo,categoria_id,proveedor_id,categorias(nombre),proveedores(nombre)",
+          )
           .eq("empresa_id", empresaId)
           .order("created_at", { ascending: false }),
-        supabase
-          .from("categorias")
-          .select("id, nombre")
-          .eq("empresa_id", empresaId),
-        supabase
-          .from("proveedores")
-          .select("id, nombre")
-          .eq("empresa_id", empresaId),
+        supabase.from("categorias").select("id, nombre").eq("empresa_id", empresaId),
+        supabase.from("proveedores").select("id, nombre").eq("empresa_id", empresaId),
       ]);
 
       if (productosRes.error) throw productosRes.error;
@@ -81,14 +77,24 @@ const Inventario = () => {
         precio: parseMoney(p.precio, NaN),
       }));
       // Logging de precios nulos/invalidos
-      const invalidPrices = productosNormalized.filter((p: any) => !Number.isFinite(Number(p.precio)));
+      const invalidPrices = productosNormalized.filter(
+        (p: any) => !Number.isFinite(Number(p.precio)),
+      );
       const zeroPrices = productosNormalized.filter((p: any) => Number(p.precio) === 0);
       logger.info(`Productos cargados: ${productosNormalized.length}`);
       if (invalidPrices.length) {
-        logger.warn(`Precios nulos/invalidos: ${invalidPrices.length}`, invalidPrices.slice(0, 5).map((p: any) => ({ id: p.id, nombre: p.nombre, precio: p.precio })));
+        logger.warn(
+          `Precios nulos/invalidos: ${invalidPrices.length}`,
+          invalidPrices
+            .slice(0, 5)
+            .map((p: any) => ({ id: p.id, nombre: p.nombre, precio: p.precio })),
+        );
       }
       if (zeroPrices.length) {
-        logger.info(`Precios en cero detectados: ${zeroPrices.length}`, zeroPrices.slice(0, 5).map((p: any) => ({ id: p.id, nombre: p.nombre })));
+        logger.info(
+          `Precios en cero detectados: ${zeroPrices.length}`,
+          zeroPrices.slice(0, 5).map((p: any) => ({ id: p.id, nombre: p.nombre })),
+        );
       }
 
       setProductos(productosNormalized);
@@ -116,7 +122,8 @@ const Inventario = () => {
     if (!isAdmin) return;
     setSelectedProductIds((prev) => {
       const set = new Set(prev);
-      if (checked) set.add(id); else set.delete(id);
+      if (checked) set.add(id);
+      else set.delete(id);
       return Array.from(set);
     });
   };
@@ -131,7 +138,9 @@ const Inventario = () => {
     try {
       const uniqueIds = Array.from(new Set(ids));
       // Asegura que sólo eliminamos IDs actualmente presentes en la grilla
-      const presentIds = uniqueIds.filter((id) => (productos || []).some((p) => String(p.id) === id));
+      const presentIds = uniqueIds.filter((id) =>
+        (productos || []).some((p) => String(p.id) === id),
+      );
       if (presentIds.length === 0) {
         setBulkDeleteOpen(false);
         setSelectedProductIds([]);
@@ -149,12 +158,15 @@ const Inventario = () => {
         .in("producto_id", presentIds);
 
       if (ventasErr || comprasErr) {
-        console.warn("No se pudieron verificar referencias antes del borrado", ventasErr || comprasErr);
+        console.warn(
+          "No se pudieron verificar referencias antes del borrado",
+          ventasErr || comprasErr,
+        );
       }
 
       const referencedSet = new Set<string>([
-        ...((ventasRef || []).map((r: any) => String(r.producto_id))),
-        ...((comprasRef || []).map((r: any) => String(r.producto_id))),
+        ...(ventasRef || []).map((r: any) => String(r.producto_id)),
+        ...(comprasRef || []).map((r: any) => String(r.producto_id)),
       ]);
       const deletableIds = presentIds.filter((id) => !referencedSet.has(String(id)));
       const blockedIds = presentIds.filter((id) => referencedSet.has(String(id)));
@@ -250,8 +262,8 @@ const Inventario = () => {
       const friendly = /Failed to fetch/i.test(msg)
         ? "Sin conexión con el servidor. Intenta nuevamente."
         : /policy|rls|permission/i.test(msg)
-        ? "No tienes permisos para eliminar productos."
-        : "Error al eliminar productos";
+          ? "No tienes permisos para eliminar productos."
+          : "Error al eliminar productos";
       toast.error(friendly);
     }
   };
@@ -288,7 +300,10 @@ const Inventario = () => {
               .select("subtotal")
               .eq("venta_id", vid);
             if (sumErr) throw sumErr;
-            const total = (sumRows || []).reduce((acc: number, r: any) => acc + Number(r.subtotal || 0), 0);
+            const total = (sumRows || []).reduce(
+              (acc: number, r: any) => acc + Number(r.subtotal || 0),
+              0,
+            );
             const { error: vUpdErr } = await supabase
               .from("ventas")
               .update({ total })
@@ -317,7 +332,10 @@ const Inventario = () => {
               .select("subtotal")
               .eq("compra_id", cid);
             if (sumErr2) throw sumErr2;
-            const totalCompra = (sumRows2 || []).reduce((acc: number, r: any) => acc + Number(r.subtotal || 0), 0);
+            const totalCompra = (sumRows2 || []).reduce(
+              (acc: number, r: any) => acc + Number(r.subtotal || 0),
+              0,
+            );
             const { error: cUpdErr } = await supabase
               .from("compras")
               .update({ total: totalCompra })
@@ -346,9 +364,9 @@ const Inventario = () => {
       const msg = String(error?.message || "");
       const friendly = /Failed to fetch/i.test(msg)
         ? "Sin conexión con el servidor. Intenta nuevamente."
-        : /policy|rls|permission|referenced/i.test(msg) || String(error?.code) === '23503'
-        ? "El producto está referenciado en ventas/compras. Se intentó cascada pero ocurrió un error."
-        : "Error al eliminar producto";
+        : /policy|rls|permission|referenced/i.test(msg) || String(error?.code) === "23503"
+          ? "El producto está referenciado en ventas/compras. Se intentó cascada pero ocurrió un error."
+          : "Error al eliminar producto";
       toast.error(friendly);
       console.error(error);
     } finally {
@@ -362,103 +380,111 @@ const Inventario = () => {
     return "normal";
   };
 
-// Configuración de columnas tipo Excel
-const columns: Column<any>[] = [
-  {
-    key: "select",
-    header: "",
-    sortable: false,
-    filterable: false,
-    align: "center",
-    headerRender: () => (
-      <input
-        type="checkbox"
-        aria-label="Seleccionar todos"
-        checked={selectedProductIds.length > 0 && selectedProductIds.length === (productos?.length || 0)}
-        onChange={(e) => toggleSelectAll(e.target.checked)}
-        onClick={(e) => e.stopPropagation()}
-        disabled={!isAdmin || (productos?.length || 0) === 0}
-      />
-    ),
-    render: (p) => (
-      <input
-        type="checkbox"
-        aria-label={`Seleccionar ${p.nombre}`}
-        checked={selectedProductIds.includes(String(p.id))}
-        onChange={(e) => toggleRowSelection(String(p.id), e.target.checked)}
-        onClick={(e) => e.stopPropagation()}
-        disabled={!isAdmin}
-      />
-    ),
-  },
-  { key: "codigo", header: "Código", sortable: true, filterable: true },
-  { key: "nombre", header: "Producto", sortable: true, filterable: true },
-  { key: "categoria", header: "Categoría", sortable: true, filterable: true, accessor: (p) => p.categorias?.nombre ?? "Sin categoría" },
-  { key: "stock", header: "Stock", sortable: true, filterable: true, align: "right" },
-  { key: "stock_minimo", header: "Mínimo", sortable: true, filterable: true, align: "right" },
-  // Formateo de precios consistente y manejo de nulos
-  { 
-    key: "precio", 
-    header: "Precio", 
-    sortable: true, 
-    filterable: true, 
-    align: "right",
-    accessor: (p) => parseMoney(p.precio),
-    render: (p) => {
-      const formatted = formatCurrencyCOP(p.precio);
-      return formatted === "—" ? <span className="text-muted-foreground">—</span> : formatted;
-    }
-  },
-  { 
-    key: "estado", 
-    header: "Estado", 
-    sortable: false, 
-    filterable: true,
-    accessor: (p) => {
-      const e = getEstado(p.stock, p.stock_minimo);
-      return e === "critico" ? "Crítico" : e === "bajo" ? "Stock Bajo" : "Normal";
+  // Configuración de columnas tipo Excel
+  const columns: Column<any>[] = [
+    {
+      key: "select",
+      header: "",
+      sortable: false,
+      filterable: false,
+      align: "center",
+      headerRender: () => (
+        <input
+          type="checkbox"
+          aria-label="Seleccionar todos"
+          checked={
+            selectedProductIds.length > 0 && selectedProductIds.length === (productos?.length || 0)
+          }
+          onChange={(e) => toggleSelectAll(e.target.checked)}
+          onClick={(e) => e.stopPropagation()}
+          disabled={!isAdmin || (productos?.length || 0) === 0}
+        />
+      ),
+      render: (p) => (
+        <input
+          type="checkbox"
+          aria-label={`Seleccionar ${p.nombre}`}
+          checked={selectedProductIds.includes(String(p.id))}
+          onChange={(e) => toggleRowSelection(String(p.id), e.target.checked)}
+          onClick={(e) => e.stopPropagation()}
+          disabled={!isAdmin}
+        />
+      ),
     },
-    render: (p) => {
-      const e = getEstado(p.stock, p.stock_minimo);
-      switch (e) {
-        case "critico":
-          return <Badge variant="destructive">Crítico</Badge>;
-        case "bajo":
-          return <Badge className="bg-warning text-warning-foreground">Stock Bajo</Badge>;
-        default:
-          return <Badge className="bg-success text-success-foreground">Normal</Badge>;
-      }
-    }
-  },
-  {
-    key: "acciones",
-    header: "Acciones",
-    align: "right",
-    render: (producto) => (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="p-2 hover:bg-muted rounded-md transition-colors">
-            <MoreVertical className="h-4 w-4 text-muted-foreground" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem onClick={() => setEditingProduct(producto)} disabled={!isAdmin}>
-            <Pencil className="h-4 w-4 mr-2" />
-            Editar
-          </DropdownMenuItem>
-          <DropdownMenuItem 
-            onClick={() => setDeletingProduct(producto)}
-            disabled={!isAdmin}
-            className="text-destructive focus:text-destructive"
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Eliminar
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    )
-  }
-];
+    { key: "codigo", header: "Código", sortable: true, filterable: true },
+    { key: "nombre", header: "Producto", sortable: true, filterable: true },
+    {
+      key: "categoria",
+      header: "Categoría",
+      sortable: true,
+      filterable: true,
+      accessor: (p) => p.categorias?.nombre ?? "Sin categoría",
+    },
+    { key: "stock", header: "Stock", sortable: true, filterable: true, align: "right" },
+    { key: "stock_minimo", header: "Mínimo", sortable: true, filterable: true, align: "right" },
+    // Formateo de precios consistente y manejo de nulos
+    {
+      key: "precio",
+      header: "Precio",
+      sortable: true,
+      filterable: true,
+      align: "right",
+      accessor: (p) => parseMoney(p.precio),
+      render: (p) => {
+        const formatted = formatCurrencyCOP(p.precio);
+        return formatted === "—" ? <span className="text-muted-foreground">—</span> : formatted;
+      },
+    },
+    {
+      key: "estado",
+      header: "Estado",
+      sortable: false,
+      filterable: true,
+      accessor: (p) => {
+        const e = getEstado(p.stock, p.stock_minimo);
+        return e === "critico" ? "Crítico" : e === "bajo" ? "Stock Bajo" : "Normal";
+      },
+      render: (p) => {
+        const e = getEstado(p.stock, p.stock_minimo);
+        switch (e) {
+          case "critico":
+            return <Badge variant="destructive">Crítico</Badge>;
+          case "bajo":
+            return <Badge className="bg-warning text-warning-foreground">Stock Bajo</Badge>;
+          default:
+            return <Badge className="bg-success text-success-foreground">Normal</Badge>;
+        }
+      },
+    },
+    {
+      key: "acciones",
+      header: "Acciones",
+      align: "right",
+      render: (producto) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="p-2 hover:bg-muted rounded-md transition-colors">
+              <MoreVertical className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => setEditingProduct(producto)} disabled={!isAdmin}>
+              <Pencil className="h-4 w-4 mr-2" />
+              Editar
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => setDeletingProduct(producto)}
+              disabled={!isAdmin}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Eliminar
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ];
 
   const getEstadoBadge = (estado: string) => {
     switch (estado) {
@@ -476,88 +502,106 @@ const columns: Column<any>[] = [
   }
 
   if (!empresaId) {
-    return <div className="flex items-center justify-center h-96 text-muted-foreground">No hay empresa asociada a tu usuario. Completa el registro y vuelve a intentar.</div>;
+    return (
+      <div className="flex items-center justify-center h-96 text-muted-foreground">
+        No hay empresa asociada a tu usuario. Completa el registro y vuelve a intentar.
+      </div>
+    );
   }
 
   return (
     <RequirePermission permission="inventario_read">
       <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-3xl font-bold text-foreground">Inventario</h2>
-          <p className="text-muted-foreground mt-1">
-            Gestión completa de productos y stock
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-3xl font-bold text-foreground">Inventario</h2>
+            <p className="text-muted-foreground mt-1">Gestión completa de productos y stock</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <ExcelUploadDialog
+              onUploadComplete={fetchData}
+              categorias={categorias}
+              proveedores={proveedores}
+            />
+            <ProductDialog
+              onProductAdded={fetchData}
+              categorias={categorias}
+              proveedores={proveedores}
+              editingProduct={editingProduct}
+              onClose={() => setEditingProduct(null)}
+            />
+            <button
+              className="px-3 py-2 rounded-md bg-destructive text-destructive-foreground disabled:opacity-50 w-full sm:w-auto"
+              disabled={!isAdmin || selectedProductIds.length === 0}
+              onClick={() => setBulkDeleteOpen(true)}
+              title={
+                isAdmin
+                  ? selectedProductIds.length
+                    ? `Eliminar ${selectedProductIds.length} seleccionados`
+                    : "Selecciona registros para eliminar"
+                  : "Permisos requeridos"
+              }
+            >
+              Eliminar seleccionados ({selectedProductIds.length})
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <ExcelUploadDialog
-            onUploadComplete={fetchData}
-            categorias={categorias}
-            proveedores={proveedores}
-          />
-          <ProductDialog
-            onProductAdded={fetchData}
-            categorias={categorias}
-            proveedores={proveedores}
-            editingProduct={editingProduct}
-            onClose={() => setEditingProduct(null)}
-          />
-          <button
-            className="px-3 py-2 rounded-md bg-destructive text-destructive-foreground disabled:opacity-50 w-full sm:w-auto"
-            disabled={!isAdmin || selectedProductIds.length === 0}
-            onClick={() => setBulkDeleteOpen(true)}
-            title={isAdmin ? (selectedProductIds.length ? `Eliminar ${selectedProductIds.length} seleccionados` : "Selecciona registros para eliminar") : "Permisos requeridos"}
-          >
-            Eliminar seleccionados ({selectedProductIds.length})
-          </button>
-        </div>
-      </div>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Productos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              columns={columns}
+              data={productos}
+              filename="productos.xlsx"
+              globalSearchPlaceholder="Buscar productos por nombre o código..."
+            />
+          </CardContent>
+        </Card>
 
+        <AlertDialog open={!!deletingProduct} onOpenChange={() => setDeletingProduct(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar producto?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta acción eliminará permanentemente el producto "{deletingProduct?.nombre}". Esta
+                acción no se puede deshacer.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
-      <Card>
-        <CardHeader>
-  <CardTitle>Productos</CardTitle>
-</CardHeader>
-        <CardContent>
-          <DataTable columns={columns} data={productos} filename="productos.xlsx" globalSearchPlaceholder="Buscar productos por nombre o código..." />
-        </CardContent>
-      </Card>
-
-      <AlertDialog open={!!deletingProduct} onOpenChange={() => setDeletingProduct(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar producto?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará permanentemente el producto "{deletingProduct?.nombre}". 
-              Esta acción no se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar productos seleccionados?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se eliminarán {selectedProductIds.length} productos seleccionados. Esta acción no se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>¿Eliminar productos seleccionados?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Se eliminarán {selectedProductIds.length} productos seleccionados. Esta acción no se
+                puede deshacer.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleBulkDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Eliminar
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </RequirePermission>
   );

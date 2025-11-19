@@ -12,9 +12,9 @@ Deno.serve(async (req: Request) => {
 
     // ✅ Usamos las variables correctas guardadas en supabase secrets
     const supabase = createClient(
-      Deno.env.get("PROJECT_URL")!,        // Reemplaza SUPABASE_URL
-      Deno.env.get("SERVICE_ROLE_KEY")!,   // Permite leer tabla con RLS
-      { global: { fetch } }
+      Deno.env.get("PROJECT_URL")!, // Reemplaza SUPABASE_URL
+      Deno.env.get("SERVICE_ROLE_KEY")!, // Permite leer tabla con RLS
+      { global: { fetch } },
     );
 
     // ✅ Consultar venta
@@ -48,7 +48,6 @@ Deno.serve(async (req: Request) => {
     });
 
     return new Response("Correo enviado correctamente ✅", { status: 200 });
-
   } catch (err) {
     console.error(err);
     return new Response("Error interno", { status: 500 });

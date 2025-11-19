@@ -111,9 +111,12 @@ const Configuracion = () => {
         createdEmpresaId = await bootstrapEmpresaRpc({ nombre: nombreVal, descripcion: descVal });
       } catch (bootErr: any) {
         const msg = String(bootErr?.message || "").toLowerCase();
-        const isSchemaCache = msg.includes("schema cache") || (bootErr?.code === "PGRST205");
+        const isSchemaCache = msg.includes("schema cache") || bootErr?.code === "PGRST205";
         if (isSchemaCache) {
-          createdEmpresaId = await bootstrapEmpresaEdge({ nombre: nombreVal, descripcion: descVal });
+          createdEmpresaId = await bootstrapEmpresaEdge({
+            nombre: nombreVal,
+            descripcion: descVal,
+          });
         } else {
           throw bootErr;
         }
@@ -130,7 +133,9 @@ const Configuracion = () => {
       const primaryCheck = (async () => {
         const hasEmpresaId = await awaitEmpresaId({ retries: 20, delayMs: 300 });
         if (!hasEmpresaId) return false;
-        const savedOk = createdEmpresaId ? await verifyEmpresaExists(createdEmpresaId) : hasEmpresaId;
+        const savedOk = createdEmpresaId
+          ? await verifyEmpresaExists(createdEmpresaId)
+          : hasEmpresaId;
         return !!savedOk;
       })();
       const timeoutMs = 3500;
@@ -142,9 +147,9 @@ const Configuracion = () => {
       if (ok) {
         clearTimeout(timeoutId);
         setTransitioning(true);
-        navigate('/', { replace: true, state: { hydratingEmpresa: true, postCreate: true } });
+        navigate("/", { replace: true, state: { hydratingEmpresa: true, postCreate: true } });
       } else {
-        navigate('/', { replace: true, state: { hydratingEmpresa: true, postCreate: true } });
+        navigate("/", { replace: true, state: { hydratingEmpresa: true, postCreate: true } });
         primaryCheck
           .then((finalOk) => {
             if (!finalOk) {
@@ -161,10 +166,10 @@ const Configuracion = () => {
       const friendly = /policy|rls|permission/i.test(msg)
         ? "Tu sesión no tiene permisos para crear empresa"
         : /Failed to fetch/i.test(msg)
-        ? "Sin conexión con el servidor"
-        : /schema cache/i.test(msg)
-        ? "El esquema aún no está sincronizado. Refresca y reintenta en unos segundos"
-        : msg || "No se pudo crear la empresa";
+          ? "Sin conexión con el servidor"
+          : /schema cache/i.test(msg)
+            ? "El esquema aún no está sincronizado. Refresca y reintenta en unos segundos"
+            : msg || "No se pudo crear la empresa";
       toast.error(friendly);
     } finally {
       setCreating(false);
@@ -174,106 +179,137 @@ const Configuracion = () => {
   return (
     <RequirePermission permission="config_view">
       <div className="space-y-6 animate-fade-in">
-      <div>
-        <h2 className="text-3xl font-bold text-foreground">Configuración</h2>
-        <p className="text-muted-foreground mt-1">Panel de opciones de configuración del sistema</p>
-      </div>
-      {!empresaId ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Crear empresa</CardTitle>
-            <CardDescription>Configura los datos iniciales para tu empresa</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Permitir crear empresa aunque el usuario aún no tenga rol asignado.
+        <div>
+          <h2 className="text-3xl font-bold text-foreground">Configuración</h2>
+          <p className="text-muted-foreground mt-1">
+            Panel de opciones de configuración del sistema
+          </p>
+        </div>
+        {!empresaId ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Crear empresa</CardTitle>
+              <CardDescription>Configura los datos iniciales para tu empresa</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Permitir crear empresa aunque el usuario aún no tenga rol asignado.
                 El RPC bootstrap_empresa_for_user es SECURITY DEFINER y asigna admin.
                 Esto evita el bloqueo inicial por falta de empresa/rol. */}
-            <>
+              <>
+                <div className="space-y-2">
+                  <label htmlFor="c_nombre" className="text-sm font-medium text-foreground">
+                    Nombre de la empresa
+                  </label>
+                  <Input
+                    id="c_nombre"
+                    value={createNombre}
+                    onChange={(e) => setCreateNombre(e.target.value)}
+                    placeholder="Mi Empresa"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="c_desc" className="text-sm font-medium text-foreground">
+                    Descripción (opcional)
+                  </label>
+                  <Input
+                    id="c_desc"
+                    value={createDesc || ""}
+                    onChange={(e) => setCreateDesc(e.target.value)}
+                    placeholder="Breve descripción"
+                  />
+                </div>
+                <div className="flex justify-end">
+                  <Button onClick={handleCreateEmpresa} disabled={creating}>
+                    {creating ? "Creando..." : "Crear empresa"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Al crear la empresa, tu perfil se vincula y se te asigna rol administrador
+                  automáticamente.
+                </p>
+              </>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>General</CardTitle>
+              <CardDescription>Información básica de la empresa</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="c_nombre" className="text-sm font-medium text-foreground">Nombre de la empresa</label>
-                <Input id="c_nombre" value={createNombre} onChange={(e) => setCreateNombre(e.target.value)} placeholder="Mi Empresa" />
+                <label htmlFor="nombre" className="text-sm font-medium text-foreground">
+                  Nombre de la empresa
+                </label>
+                <Input id="nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <label htmlFor="c_desc" className="text-sm font-medium text-foreground">Descripción (opcional)</label>
-                <Input id="c_desc" value={createDesc || ""} onChange={(e) => setCreateDesc(e.target.value)} placeholder="Breve descripción" />
+                <label htmlFor="descripcion" className="text-sm font-medium text-foreground">
+                  Descripción
+                </label>
+                <textarea
+                  id="descripcion"
+                  className="w-full rounded-md border border-input bg-background p-2 text-sm"
+                  rows={3}
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                />
               </div>
               <div className="flex justify-end">
-                <Button onClick={handleCreateEmpresa} disabled={creating}>
-                  {creating ? "Creando..." : "Crear empresa"}
+                <Button onClick={saveEmpresa} disabled={saving}>
+                  {saving ? "Guardando..." : "Guardar cambios"}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">Al crear la empresa, tu perfil se vincula y se te asigna rol administrador automáticamente.</p>
-            </>
+            </CardContent>
+          </Card>
+        )}
+
+        <UserRolePanel />
+
+        <RequirePermission permission="manage_users">
+          <UserManagementPanel />
+        </RequirePermission>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Notificaciones</CardTitle>
+            <CardDescription>Preferencias de alertas y avisos</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Configura cómo recibir notificaciones sobre stock bajo, movimientos y otros eventos.
+            </p>
+            <Separator />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Alertas de Stock Bajo</label>
+                <p className="text-sm text-muted-foreground">
+                  Se muestran en el módulo de Alertas.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Alertas de Stock Crítico
+                </label>
+                <p className="text-sm text-muted-foreground">
+                  Se muestran en el módulo de Alertas.
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Próximamente: canales de notificación (email, push).
+            </p>
           </CardContent>
         </Card>
-      ) : (
-      <Card>
-        <CardHeader>
-          <CardTitle>General</CardTitle>
-          <CardDescription>Información básica de la empresa</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="nombre" className="text-sm font-medium text-foreground">Nombre de la empresa</label>
-            <Input id="nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="descripcion" className="text-sm font-medium text-foreground">Descripción</label>
-            <textarea
-              id="descripcion"
-              className="w-full rounded-md border border-input bg-background p-2 text-sm"
-              rows={3}
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-            />
-          </div>
-          <div className="flex justify-end">
-            <Button onClick={saveEmpresa} disabled={saving}>
-              {saving ? "Guardando..." : "Guardar cambios"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      )}
 
-      <UserRolePanel />
-
-      <RequirePermission permission="manage_users">
-        <UserManagementPanel />
-      </RequirePermission>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Notificaciones</CardTitle>
-          <CardDescription>Preferencias de alertas y avisos</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Configura cómo recibir notificaciones sobre stock bajo, movimientos y otros eventos.
-          </p>
-          <Separator />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Alertas de Stock Bajo</label>
-              <p className="text-sm text-muted-foreground">Se muestran en el módulo de Alertas.</p>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Alertas de Stock Crítico</label>
-              <p className="text-sm text-muted-foreground">Se muestran en el módulo de Alertas.</p>
+        {transitioning && (
+          <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-center justify-center">
+            <div className="rounded-lg bg-background border p-6 shadow-xl text-center">
+              <p className="text-sm text-muted-foreground">Empresa creada correctamente</p>
+              <p className="mt-2 font-medium">Redirigiendo a los módulos…</p>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">Próximamente: canales de notificación (email, push).</p>
-        </CardContent>
-      </Card>
-
-      {transitioning && (
-        <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-center justify-center">
-          <div className="rounded-lg bg-background border p-6 shadow-xl text-center">
-            <p className="text-sm text-muted-foreground">Empresa creada correctamente</p>
-            <p className="mt-2 font-medium">Redirigiendo a los módulos…</p>
-          </div>
-        </div>
-      )}
+        )}
       </div>
     </RequirePermission>
   );

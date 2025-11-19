@@ -26,7 +26,7 @@ function html(link: string, username?: string | null, expiresHours = 72) {
   return `<!DOCTYPE html><html><body style="font-family:Arial,Helvetica,sans-serif;color:#111827;">
     <div style="max-width:600px;margin:0 auto;padding:24px;">
       <h2>Has sido invitado a Mi Negocio ERP</h2>
-      <p>Hola${username ? ` ${username}` : ''},</p>
+      <p>Hola${username ? ` ${username}` : ""},</p>
       <p>Has recibido una invitación para unirte a la empresa en Mi Negocio ERP.</p>
       <p style="text-align:center;margin:24px 0;">
         <a href="${link}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;">Aceptar invitación</a>
@@ -39,7 +39,7 @@ function html(link: string, username?: string | null, expiresHours = 72) {
 }
 
 function text(link: string, username?: string | null, expiresHours = 72) {
-  return `Hola${username ? ` ${username}` : ''},\n\nHas recibido una invitación para unirte a la empresa en Mi Negocio ERP.\nPara aceptar, abre este enlace: ${link}\n\nEsta invitación expira en ${expiresHours} horas.\n\nSi no esperabas este correo, puedes ignorarlo.`;
+  return `Hola${username ? ` ${username}` : ""},\n\nHas recibido una invitación para unirte a la empresa en Mi Negocio ERP.\nPara aceptar, abre este enlace: ${link}\n\nEsta invitación expira en ${expiresHours} horas.\n\nSi no esperabas este correo, puedes ignorarlo.`;
 }
 
 serve(async (req) => {

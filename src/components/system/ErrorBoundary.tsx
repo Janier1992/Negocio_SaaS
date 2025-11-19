@@ -28,9 +28,13 @@ export class ErrorBoundary extends React.Component<Props, State> {
           <div className="max-w-md text-center space-y-3">
             <div className="text-2xl font-semibold">No se pudo cargar la aplicación</div>
             <p className="text-sm text-muted-foreground">
-              Ocurrió un error inesperado. Si el servicio está temporalmente no disponible, intenta recargar.
+              Ocurrió un error inesperado. Si el servicio está temporalmente no disponible, intenta
+              recargar.
             </p>
-            <button onClick={this.handleReload} className="px-4 py-2 rounded bg-primary text-primary-foreground">
+            <button
+              onClick={this.handleReload}
+              className="px-4 py-2 rounded bg-primary text-primary-foreground"
+            >
               Recargar
             </button>
           </div>

@@ -14,12 +14,18 @@ export const useUserProfile = () => {
 
   const fetchProfile = useCallback(async (): Promise<string | null> => {
     try {
-      const { data: { user }, error } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
       if (error) {
         const msg = String(error?.message || "").toLowerCase();
-        const isInvalidRefresh = msg.includes("invalid refresh token") || msg.includes("refresh token not found");
+        const isInvalidRefresh =
+          msg.includes("invalid refresh token") || msg.includes("refresh token not found");
         if (isInvalidRefresh) {
-          try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
+          try {
+            await supabase.auth.signOut({ scope: "local" });
+          } catch {}
         }
       }
 
@@ -73,18 +79,21 @@ export const useUserProfile = () => {
 
   // Espera activa a que empresaId esté disponible, reintentando el fetch
   // Útil justo después de bootstrap donde puede haber latencia de propagación
-  const awaitEmpresaId = useCallback(async (opts?: { retries?: number; delayMs?: number }) => {
-    const retries = Math.max(1, Math.min(20, opts?.retries ?? 10));
-    const delayMs = Math.max(50, Math.min(2000, opts?.delayMs ?? 300));
-    for (let i = 0; i < retries; i++) {
-      const fetchedId = await fetchProfile();
-      if (fetchedId) return true;
-      await new Promise((res) => setTimeout(res, delayMs));
-    }
-    // Último intento
-    const finalId = await fetchProfile();
-    return !!finalId;
-  }, [fetchProfile]);
+  const awaitEmpresaId = useCallback(
+    async (opts?: { retries?: number; delayMs?: number }) => {
+      const retries = Math.max(1, Math.min(20, opts?.retries ?? 10));
+      const delayMs = Math.max(50, Math.min(2000, opts?.delayMs ?? 300));
+      for (let i = 0; i < retries; i++) {
+        const fetchedId = await fetchProfile();
+        if (fetchedId) return true;
+        await new Promise((res) => setTimeout(res, delayMs));
+      }
+      // Último intento
+      const finalId = await fetchProfile();
+      return !!finalId;
+    },
+    [fetchProfile],
+  );
 
   useEffect(() => {
     refetch();

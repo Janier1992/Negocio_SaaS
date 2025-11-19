@@ -31,18 +31,26 @@ Ejecutar Lighthouse/Pagespeed en modo producción (preview o entorno real):
 
 ### Resultados
 
-- Antes (baseline):
-  - FCP: ____ ms
-  - TTI: ____ ms
-  - TBT: ____ ms
-  - LCP: ____ ms
-  - Size: ____ KB
-- Después (optimizado):
-  - FCP: ____ ms
-  - TTI: ____ ms
-  - TBT: ____ ms
-  - LCP: ____ ms
-  - Size: ____ KB
+Resumen (última ejecución en preview local):
+
+- Performance: 94
+- Accessibility: 95
+- Best Practices: 100
+- SEO: 100
+- PWA: 0
+- FCP: 2.2 s
+- LCP: 2.4 s
+- TBT: 140 ms
+
+Tamaño del build (dist):
+
+- Total: ~3.21 MB
+- Top 5 archivos por tamaño:
+  - `alert-dialog-*.js` ~425 KB
+  - `Finanzas-*.js` ~400 KB
+  - `react-*.js` ~348 KB
+  - `html2canvas.esm-*.js` ~198 KB
+  - `supabase-*.js` ~156 KB
 
 ## Consideraciones de Seguridad
 
@@ -54,4 +62,6 @@ Ejecutar Lighthouse/Pagespeed en modo producción (preview o entorno real):
 
 - Integrar `workbox` para precache hash de assets en builds grandes.
 - Bundles visualizados con `rollup-plugin-visualizer` para identificar otros candidatos a splitting.
+- Reducir peso de `Finanzas` y `alert-dialog` con lazy loading y separación por rutas/diálogos.
+- Evaluar carga diferida de `html2canvas` sólo cuando se exportan comprobantes.
 - Auditorías periódicas de permisos y validación en formularios clave.

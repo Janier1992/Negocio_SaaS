@@ -86,15 +86,17 @@ export function AppSidebar() {
   const isCompactViewport = useIsMobileOrTablet();
 
   const getNavClasses = (isActive: boolean) =>
-    isActive
-      ? "bg-sidebar-accent text-sidebar-primary font-medium"
-      : "hover:bg-sidebar-accent/50";
+    isActive ? "bg-sidebar-accent text-sidebar-primary font-medium" : "hover:bg-sidebar-accent/50";
 
   const handleAfterNavigate = () => {
     // Interactivo solo en móviles y tablets
     if (isCompactViewport) {
-      try { setOpen(false); } catch {}
-      try { setOpenMobile(false); } catch {}
+      try {
+        setOpen(false);
+      } catch {}
+      try {
+        setOpenMobile(false);
+      } catch {}
     }
   };
 
@@ -107,23 +109,18 @@ export function AppSidebar() {
     }
     await new Promise((res) => setTimeout(res, 200));
     try {
-      navigate('/auth', { replace: true });
+      navigate("/auth", { replace: true });
     } catch {
       window.location.href = `${import.meta.env.BASE_URL}auth`;
     }
   };
 
   return (
-    <Sidebar
-      className={isCollapsed ? "w-14" : "w-64"}
-      collapsible="icon"
-    >
+    <Sidebar className={isCollapsed ? "w-14" : "w-64"} collapsible="icon">
       <SidebarContent>
         <div className="p-4">
           {!isCollapsed && (
-            <h2 className="text-lg font-bold text-sidebar-foreground mb-6">
-              ERP Facil
-            </h2>
+            <h2 className="text-lg font-bold text-sidebar-foreground mb-6">ERP Facil</h2>
           )}
         </div>
 
@@ -151,22 +148,22 @@ export function AppSidebar() {
                   return key ? permissions.includes(key) : true;
                 })
                 .map((item) => {
-                const isActive = location.pathname === item.url;
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <NavLink
-                        to={item.url}
-                        className={getNavClasses(isActive)}
-                        onClick={handleAfterNavigate}
-                      >
-                        <item.icon className="h-5 w-5" />
-                        {!isCollapsed && <span>{item.title}</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+                  const isActive = location.pathname === item.url;
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to={item.url}
+                          className={getNavClasses(isActive)}
+                          onClick={handleAfterNavigate}
+                        >
+                          <item.icon className="h-5 w-5" />
+                          {!isCollapsed && <span>{item.title}</span>}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

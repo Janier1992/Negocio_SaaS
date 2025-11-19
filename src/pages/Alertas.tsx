@@ -17,7 +17,9 @@ const Alertas = () => {
   const { empresaId, loading: profileLoading } = useUserProfile();
   const [loading, setLoading] = useState(true);
   const [alertas, setAlertas] = useState<Alerta[]>([]);
-  const [productosMap, setProductosMap] = useState<Map<string, { nombre?: string; codigo?: string; stock?: number }>>(new Map());
+  const [productosMap, setProductosMap] = useState<
+    Map<string, { nombre?: string; codigo?: string; stock?: number }>
+  >(new Map());
   const [search, setSearch] = useState("");
   const [estado, setEstado] = useState<"todas" | "activas" | "leidas">("todas");
   const [tipo, setTipo] = useState<"todos" | "stock_bajo" | "stock_critico">("todos");
@@ -38,16 +40,32 @@ const Alertas = () => {
     try {
       const desde = dateFrom ? new Date(dateFrom).toISOString() : undefined;
       const hasta = dateTo ? new Date(dateTo).toISOString() : undefined;
-      const orderBy = sortKey === "fecha" ? "created_at" : sortKey === "tipo" ? "tipo" : "created_at";
+      const orderBy =
+        sortKey === "fecha" ? "created_at" : sortKey === "tipo" ? "tipo" : "created_at";
       try {
         const leidaFilter = supportsLeida
-          ? (estado === "activas" ? false : estado === "leidas" ? true : undefined)
+          ? estado === "activas"
+            ? false
+            : estado === "leidas"
+              ? true
+              : undefined
           : undefined;
         const tipoFilter = tipo === "todos" ? undefined : tipo;
-        const { rows, count } = await fetchAlertsPaged({ empresaId, desde, hasta, tipo: tipoFilter, leida: leidaFilter, search, orderBy, orderAsc: sortAsc, page, pageSize });
+        const { rows, count } = await fetchAlertsPaged({
+          empresaId,
+          desde,
+          hasta,
+          tipo: tipoFilter,
+          leida: leidaFilter,
+          search,
+          orderBy,
+          orderAsc: sortAsc,
+          page,
+          pageSize,
+        });
         const dbRows = rows as Alerta[];
         setSupportsLeida(true);
-        const ids = Array.from(new Set((dbRows).map(r => String(r.producto_id)).filter(Boolean)));
+        const ids = Array.from(new Set(dbRows.map((r) => String(r.producto_id)).filter(Boolean)));
         if (ids.length > 0) {
           const { data: prodRows, error: prodErr } = await supabase
             .from("productos")
@@ -55,7 +73,7 @@ const Alertas = () => {
             .in("id", ids);
           if (!prodErr) {
             const map = new Map<string, { nombre?: string; codigo?: string; stock?: number }>();
-            for (const p of (prodRows || [])) {
+            for (const p of prodRows || []) {
               map.set(String(p.id), { nombre: p.nombre, codigo: p.codigo, stock: p.stock });
             }
             setProductosMap(map);
@@ -88,7 +106,9 @@ const Alertas = () => {
                   : `Stock (${stock}) por debajo del mínimo (${min}).`;
                 const searchLow = (search || "").trim().toLowerCase();
                 if (searchLow) {
-                  const hay = titulo.toLowerCase().includes(searchLow) || mensaje.toLowerCase().includes(searchLow);
+                  const hay =
+                    titulo.toLowerCase().includes(searchLow) ||
+                    mensaje.toLowerCase().includes(searchLow);
                   if (!hay) continue;
                 }
                 const nowIso = new Date().toISOString();
@@ -113,7 +133,9 @@ const Alertas = () => {
       } catch (error: any) {
         const msg = String(error?.message || "").toLowerCase();
         if (msg.includes("column") && msg.includes("leida")) {
-          console.warn("[Alertas] Faltan columnas leida en la instancia. Fallback a columnas básicas.");
+          console.warn(
+            "[Alertas] Faltan columnas leida en la instancia. Fallback a columnas básicas.",
+          );
           setSupportsLeida(false);
           const retry = await supabase
             .from("alertas")
@@ -234,7 +256,11 @@ const Alertas = () => {
     // Suscripción adicional a productos para actualizar el fallback
     const chProductos = supabase
       .channel(`alertas-productos-${empresaId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "productos", filter: `empresa_id=eq.${empresaId}` }, () => fetchAlertas())
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "productos", filter: `empresa_id=eq.${empresaId}` },
+        () => fetchAlertas(),
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(chAlertas);
@@ -250,7 +276,7 @@ const Alertas = () => {
         await markAlertRead(id, true);
       }
       // Siempre reflejar en UI
-      setAlertas(prev => prev.map(a => (a.id === id ? { ...a, leida: true } : a)));
+      setAlertas((prev) => prev.map((a) => (a.id === id ? { ...a, leida: true } : a)));
       toast.success("Alerta marcada como leída");
     } catch (err: any) {
       toast.error("No se pudo marcar la alerta");
@@ -260,19 +286,16 @@ const Alertas = () => {
 
   const marcarTodasLeidas = async () => {
     try {
-      const ids = filteredAlertas.map(a => a.id);
+      const ids = filteredAlertas.map((a) => a.id);
       if (ids.length === 0) return;
       // Persistir sólo ids reales (UUID) cuando hay soporte; el resto se marca localmente
       const uuidRegex = /^[0-9a-fA-F-]{36}$/;
       const realIds = supportsLeida ? ids.filter((id) => uuidRegex.test(id)) : [];
       if (realIds.length > 0) {
-        const { error } = await supabase
-          .from("alertas")
-          .update({ leida: true })
-          .in("id", realIds);
+        const { error } = await supabase.from("alertas").update({ leida: true }).in("id", realIds);
         if (error) throw error;
       }
-      setAlertas(prev => prev.map(a => ({ ...a, leida: true })));
+      setAlertas((prev) => prev.map((a) => ({ ...a, leida: true })));
       toast.success("Todas las alertas visibles marcadas como leídas");
     } catch (err: any) {
       toast.error("No se pudieron marcar las alertas");
@@ -286,7 +309,7 @@ const Alertas = () => {
   }, [alertas]);
 
   useEffect(() => {
-    setTotalActivas(alertas.filter(a => !a.leida).length);
+    setTotalActivas(alertas.filter((a) => !a.leida).length);
   }, [alertas]);
 
   const getTipoBadge = (t: string) => {
@@ -318,7 +341,9 @@ const Alertas = () => {
         <div>
           <h2 className="text-3xl font-bold text-foreground">Alertas</h2>
           <p className="text-muted-foreground mt-1">Gestión de alertas del sistema</p>
-          <div className="text-sm mt-1">Activas: <span className="font-semibold">{totalActivas}</span></div>
+          <div className="text-sm mt-1">
+            Activas: <span className="font-semibold">{totalActivas}</span>
+          </div>
         </div>
         {/* Se eliminan botones secundarios del header para simplificar el módulo */}
       </div>
@@ -327,7 +352,9 @@ const Alertas = () => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Listado de Alertas</CardTitle>
-            <Button variant="default" onClick={marcarTodasLeidas}>Marcar todas como leídas</Button>
+            <Button variant="default" onClick={marcarTodasLeidas}>
+              Marcar todas como leídas
+            </Button>
           </div>
           <div className="grid grid-cols-1 gap-3 mt-4">
             <div className="flex gap-2">
@@ -351,7 +378,7 @@ const Alertas = () => {
               </Button>
               <Button
                 variant="ghost"
-                onClick={() => { 
+                onClick={() => {
                   setTipo("todos");
                   setSearch("");
                   setDateFrom(null);
@@ -369,7 +396,9 @@ const Alertas = () => {
         </CardHeader>
         <CardContent>
           {filteredAlertas.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No hay alertas para los filtros seleccionados.</div>
+            <div className="text-sm text-muted-foreground">
+              No hay alertas para los filtros seleccionados.
+            </div>
           ) : (
             <div className="space-y-3">
               {filteredAlertas.map((a) => (
@@ -387,14 +416,22 @@ const Alertas = () => {
                     <p className="text-sm text-muted-foreground mt-1">{a.mensaje}</p>
                     {a.producto_id && productosMap.get(String(a.producto_id)) && (
                       <p className="text-sm text-muted-foreground mt-1">
-                        <span className="font-medium">{productosMap.get(String(a.producto_id))?.nombre}</span>
+                        <span className="font-medium">
+                          {productosMap.get(String(a.producto_id))?.nombre}
+                        </span>
                         {productosMap.get(String(a.producto_id))?.codigo && (
-                          <span className="ml-2">Código: {productosMap.get(String(a.producto_id))?.codigo}</span>
+                          <span className="ml-2">
+                            Código: {productosMap.get(String(a.producto_id))?.codigo}
+                          </span>
                         )}
-                        <span className="ml-2">Stock: {productosMap.get(String(a.producto_id))?.stock ?? '-'}</span>
+                        <span className="ml-2">
+                          Stock: {productosMap.get(String(a.producto_id))?.stock ?? "-"}
+                        </span>
                       </p>
                     )}
-                    <p className="text-xs text-muted-foreground mt-1">{new Date(a.created_at).toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(a.created_at).toLocaleString()}
+                    </p>
                   </div>
                   <div className="flex flex-col gap-2">
                     {!a.leida && (
@@ -410,16 +447,44 @@ const Alertas = () => {
           <Separator className="my-4" />
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs text-muted-foreground">
-              Mostrando <span className="font-semibold">{filteredAlertas.length}</span> de <span className="font-semibold">{totalCount}</span> alertas
+              Mostrando <span className="font-semibold">{filteredAlertas.length}</span> de{" "}
+              <span className="font-semibold">{totalCount}</span> alertas
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => { setPage((p) => Math.max(1, p - 1)); fetchAlertas(); }} disabled={page <= 1}>Anterior</Button>
-              <span className="text-sm">Página {page} de {Math.max(1, Math.ceil(totalCount / pageSize))}</span>
-              <Button variant="outline" size="sm" onClick={() => { const totalPages = Math.max(1, Math.ceil(totalCount / pageSize)); setPage((p) => Math.min(totalPages, p + 1)); fetchAlertas(); }} disabled={page >= Math.max(1, Math.ceil(totalCount / pageSize))}>Siguiente</Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setPage((p) => Math.max(1, p - 1));
+                  fetchAlertas();
+                }}
+                disabled={page <= 1}
+              >
+                Anterior
+              </Button>
+              <span className="text-sm">
+                Página {page} de {Math.max(1, Math.ceil(totalCount / pageSize))}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+                  setPage((p) => Math.min(totalPages, p + 1));
+                  fetchAlertas();
+                }}
+                disabled={page >= Math.max(1, Math.ceil(totalCount / pageSize))}
+              >
+                Siguiente
+              </Button>
               <select
                 className="text-sm border rounded px-2 py-1 bg-background"
                 value={pageSize}
-                onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); fetchAlertas(); }}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                  fetchAlertas();
+                }}
               >
                 <option value={10}>10</option>
                 <option value={20}>20</option>

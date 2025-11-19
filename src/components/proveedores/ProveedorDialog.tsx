@@ -21,10 +21,10 @@ interface ProveedorDialogProps {
   onClose?: () => void;
 }
 
-export const ProveedorDialog = ({ 
+export const ProveedorDialog = ({
   onProveedorAdded,
   editingProveedor,
-  onClose 
+  onClose,
 }: ProveedorDialogProps) => {
   const { empresaId } = useUserProfile();
   const [open, setOpen] = useState(false);
@@ -59,7 +59,10 @@ export const ProveedorDialog = ({
       toast.error("No se encontró empresa asociada al usuario.");
       return;
     }
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
     if (authError || !user) {
       toast.error("Sesión inválida. Inicia sesión nuevamente.");
       return;
@@ -68,8 +71,10 @@ export const ProveedorDialog = ({
     // Validaciones
     const newErrors: Record<string, string> = {};
     if (!formData.nombre.trim()) newErrors.nombre = "El nombre es obligatorio";
-    if (formData.email && !/^\S+@\S+\.\S+$/.test(formData.email)) newErrors.email = "Email inválido";
-    if (formData.telefono && !/^[+\d\s-]{6,}$/.test(formData.telefono)) newErrors.telefono = "Teléfono inválido";
+    if (formData.email && !/^\S+@\S+\.\S+$/.test(formData.email))
+      newErrors.email = "Email inválido";
+    if (formData.telefono && !/^[+\d\s-]{6,}$/.test(formData.telefono))
+      newErrors.telefono = "Teléfono inválido";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -147,7 +152,13 @@ export const ProveedorDialog = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) handleClose(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) handleClose();
+      }}
+    >
       <DialogTrigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
@@ -156,10 +167,10 @@ export const ProveedorDialog = ({
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{editingProveedor ? "Editar Proveedor" : "Agregar Nuevo Proveedor"}</DialogTitle>
-          <DialogDescription>
-            Ingrese los datos del proveedor
-          </DialogDescription>
+          <DialogTitle>
+            {editingProveedor ? "Editar Proveedor" : "Agregar Nuevo Proveedor"}
+          </DialogTitle>
+          <DialogDescription>Ingrese los datos del proveedor</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -208,7 +219,11 @@ export const ProveedorDialog = ({
             />
           </div>
           <Button type="submit" disabled={loading} className="w-full">
-            {loading ? "Guardando..." : editingProveedor ? "Actualizar Proveedor" : "Guardar Proveedor"}
+            {loading
+              ? "Guardando..."
+              : editingProveedor
+                ? "Actualizar Proveedor"
+                : "Guardar Proveedor"}
           </Button>
         </form>
       </DialogContent>

@@ -19,7 +19,11 @@ interface ExcelUploadDialogProps {
   proveedores: any[];
 }
 
-export const ExcelUploadDialog = ({ onUploadComplete, categorias, proveedores }: ExcelUploadDialogProps) => {
+export const ExcelUploadDialog = ({
+  onUploadComplete,
+  categorias,
+  proveedores,
+}: ExcelUploadDialogProps) => {
   const [open, setOpen] = useState(false);
   const { uploadProductos, loading } = useExcelUpload();
 
@@ -31,7 +35,7 @@ export const ExcelUploadDialog = ({ onUploadComplete, categorias, proveedores }:
         descripcion: "Descripción del producto",
         categoria: categorias[0]?.nombre || "Categoría",
         proveedor: proveedores[0]?.nombre || "Proveedor",
-        precio: 100.00,
+        precio: 100.0,
         stock: 50,
         stock_minimo: 10,
       },
@@ -63,7 +67,9 @@ export const ExcelUploadDialog = ({ onUploadComplete, categorias, proveedores }:
 
     try {
       const result = await uploadProductos(file, categorias, proveedores);
-      toast.success(`${result.inserted} productos agregados, ${result.duplicates} duplicados omitidos`);
+      toast.success(
+        `${result.inserted} productos agregados, ${result.duplicates} duplicados omitidos`,
+      );
       setOpen(false);
       onUploadComplete();
     } catch (error: any) {

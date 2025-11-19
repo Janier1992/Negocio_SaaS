@@ -5,14 +5,18 @@ export type LogoutResult = { ok: boolean; message: string };
 // Centraliza el cierre de sesión para evitar duplicidad de toasts y asegurar mensajes consistentes.
 export async function performLogout(): Promise<LogoutResult> {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     // Si no hay sesión, consideramos logout exitoso para evitar 401 innecesarios
     if (!session) {
-      try { await supabase.auth.signOut({ scope: 'local' }); } catch {}
+      try {
+        await supabase.auth.signOut({ scope: "local" });
+      } catch {}
       return { ok: true, message: "Sesión cerrada exitosamente" };
     }
 
-    const res = await supabase.auth.signOut({ scope: 'global' });
+    const res = await supabase.auth.signOut({ scope: "global" });
     const error: any = (res as any)?.error;
     if (error) {
       const msg = String(error?.message || "").toLowerCase();

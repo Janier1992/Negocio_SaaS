@@ -2,16 +2,46 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/newClient";
 import { validateEmail, validatePassword } from "@/services/users";
 import { useUserProfile } from "@/hooks/useUserProfile";
 
-type AppRole = "admin" | "administrativo" | "ventas" | "inventario" | "finanzas" | "auxiliar" | "empleado" | "viewer";
-const ROLES: AppRole[] = ["admin", "administrativo", "ventas", "inventario", "finanzas", "auxiliar", "empleado", "viewer"];
+type AppRole =
+  | "admin"
+  | "administrativo"
+  | "ventas"
+  | "inventario"
+  | "finanzas"
+  | "auxiliar"
+  | "empleado"
+  | "viewer";
+const ROLES: AppRole[] = [
+  "admin",
+  "administrativo",
+  "ventas",
+  "inventario",
+  "finanzas",
+  "auxiliar",
+  "empleado",
+  "viewer",
+];
 
 type ProfileRow = {
   id: string;
@@ -25,7 +55,7 @@ type RoleRow = {
   user_id: string;
   empresa_id?: string | null;
   role?: AppRole; // esquema original con columna 'role'
-  rol?: AppRole;  // esquema alterno con columna 'rol'
+  rol?: AppRole; // esquema alterno con columna 'rol'
 };
 
 export const UserManagementPanel = () => {
@@ -51,7 +81,11 @@ export const UserManagementPanel = () => {
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return users;
-    return users.filter(u => (u.full_name || "").toLowerCase().includes(term) || (u.email || "").toLowerCase().includes(term));
+    return users.filter(
+      (u) =>
+        (u.full_name || "").toLowerCase().includes(term) ||
+        (u.email || "").toLowerCase().includes(term),
+    );
   }, [users, search]);
 
   useEffect(() => {
@@ -67,7 +101,9 @@ export const UserManagementPanel = () => {
         setUsers((data || []) as ProfileRow[]);
       } catch (err: any) {
         const msg = String(err?.message || "");
-        const friendly = /policy|rls|permission/i.test(msg) ? "Sin permisos para ver usuarios" : "No se pudieron cargar usuarios";
+        const friendly = /policy|rls|permission/i.test(msg)
+          ? "Sin permisos para ver usuarios"
+          : "No se pudieron cargar usuarios";
         toast.error(friendly);
       } finally {
         setLoadingUsers(false);
@@ -86,11 +122,11 @@ export const UserManagementPanel = () => {
         .eq("user_id", userId);
       if (error) throw error;
       const rows = (data || []) as RoleRow[];
-      const roles = rows.map(r => (r.role || r.rol) as AppRole).filter(Boolean) as AppRole[];
+      const roles = rows.map((r) => (r.role || r.rol) as AppRole).filter(Boolean) as AppRole[];
       setUserRoles([...new Set(roles)]);
     } catch (err: any) {
       // Si la tabla no existe o falla, degradar a rol primario en profiles
-      const fallback = users.find(u => u.id === userId)?.rol as AppRole | undefined;
+      const fallback = users.find((u) => u.id === userId)?.rol as AppRole | undefined;
       setUserRoles(fallback ? [fallback] : []);
     }
   };
@@ -101,12 +137,25 @@ export const UserManagementPanel = () => {
 
   const handleRegisterUser = async () => {
     setRegError("");
-    if (!isAdmin) { toast.error("Solo administradores pueden agregar usuarios"); return; }
+    if (!isAdmin) {
+      toast.error("Solo administradores pueden agregar usuarios");
+      return;
+    }
     const email = regEmail.trim();
     const password = regPassword;
     const fullName = regFullName.trim() || null;
-    if (!validateEmail(email)) { setRegError("Correo inválido"); toast.error("Correo inválido"); return; }
-    if (!validatePassword(password)) { setRegError("La contraseña debe tener mínimo 10 caracteres, mayúscula, minúscula, número y símbolo"); toast.error("Contraseña insegura"); return; }
+    if (!validateEmail(email)) {
+      setRegError("Correo inválido");
+      toast.error("Correo inválido");
+      return;
+    }
+    if (!validatePassword(password)) {
+      setRegError(
+        "La contraseña debe tener mínimo 10 caracteres, mayúscula, minúscula, número y símbolo",
+      );
+      toast.error("Contraseña insegura");
+      return;
+    }
     setRegSubmitting(true);
     try {
       const svc = await import("@/services/users");
@@ -126,10 +175,12 @@ export const UserManagementPanel = () => {
       } else {
         toast.error("No se pudo agregar el usuario");
       }
-  } catch (err: any) {
+    } catch (err: any) {
       const raw = String(err?.message || "");
       const msg = raw.toLowerCase();
-      const serverErr = String((err?.context?.body?.error || err?.context?.error || "")).toLowerCase();
+      const serverErr = String(
+        err?.context?.body?.error || err?.context?.error || "",
+      ).toLowerCase();
       const match = (s: string) => s && s.toLowerCase();
       const m1 = match(msg);
       const m2 = match(serverErr);
@@ -169,7 +220,9 @@ export const UserManagementPanel = () => {
   };
 
   const toggleRole = (role: AppRole) => {
-    setUserRoles(prev => (prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]));
+    setUserRoles((prev) =>
+      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role],
+    );
   };
 
   const handleAssignRoles = async () => {
@@ -209,7 +262,9 @@ export const UserManagementPanel = () => {
       }
     } catch (err: any) {
       const msg = String(err?.message || "");
-      const friendly = /policy|rls|permission|admin/i.test(msg) ? "Sin permisos para asignar" : "No se pudo asignar roles";
+      const friendly = /policy|rls|permission|admin/i.test(msg)
+        ? "Sin permisos para asignar"
+        : "No se pudo asignar roles";
       toast.error(friendly);
     } finally {
       setSavingRoles(false);
@@ -246,7 +301,11 @@ export const UserManagementPanel = () => {
           <CardDescription>Registro directo con contraseña y roles múltiples</CardDescription>
         </div>
         <div className="w-60">
-          <Input placeholder="Buscar usuarios" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <Input
+            placeholder="Buscar usuarios"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -254,24 +313,42 @@ export const UserManagementPanel = () => {
         <div className="space-y-4">
           <h4 className="font-medium">Agregar nuevo usuario</h4>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-            <Input placeholder="correo@dominio.com" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} />
-            <Input type="password" placeholder="Contraseña (10+ con mayúscula, minúscula, número y símbolo)" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} />
-            <Input placeholder="Nombre completo (opcional)" value={regFullName} onChange={(e) => setRegFullName(e.target.value)} />
+            <Input
+              placeholder="correo@dominio.com"
+              value={regEmail}
+              onChange={(e) => setRegEmail(e.target.value)}
+            />
+            <Input
+              type="password"
+              placeholder="Contraseña (10+ con mayúscula, minúscula, número y símbolo)"
+              value={regPassword}
+              onChange={(e) => setRegPassword(e.target.value)}
+            />
+            <Input
+              placeholder="Nombre completo (opcional)"
+              value={regFullName}
+              onChange={(e) => setRegFullName(e.target.value)}
+            />
             <Select value={regRole} onValueChange={(v) => setRegRole(v as AppRole)}>
               <SelectTrigger>
                 <SelectValue placeholder="Rol" />
               </SelectTrigger>
               <SelectContent>
-                {ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                {ROLES.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {r}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <Button onClick={handleRegisterUser} disabled={regSubmitting || !validateEmail(regEmail) || !validatePassword(regPassword)}>
+            <Button
+              onClick={handleRegisterUser}
+              disabled={regSubmitting || !validateEmail(regEmail) || !validatePassword(regPassword)}
+            >
               {regSubmitting ? "Agregando…" : "Agregar"}
             </Button>
           </div>
-          {regError && (
-            <div className="text-xs text-red-500">{regError}</div>
-          )}
+          {regError && <div className="text-xs text-red-500">{regError}</div>}
         </div>
 
         <Separator />
@@ -285,15 +362,21 @@ export const UserManagementPanel = () => {
                 <SelectValue placeholder="Selecciona un usuario" />
               </SelectTrigger>
               <SelectContent>
-                {filteredUsers.map(u => (
-                  <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>
+                {filteredUsers.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.full_name || u.email}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <div className="flex gap-3">
-              {ROLES.map(r => (
+              {ROLES.map((r) => (
                 <label key={r} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={userRoles.includes(r)} onChange={() => toggleRole(r)} />
+                  <input
+                    type="checkbox"
+                    checked={userRoles.includes(r)}
+                    onChange={() => toggleRole(r)}
+                  />
                   {r}
                 </label>
               ))}
@@ -319,15 +402,19 @@ export const UserManagementPanel = () => {
               <TableBody>
                 {filteredUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-muted-foreground">Sin usuarios</TableCell>
+                    <TableCell colSpan={3} className="text-muted-foreground">
+                      Sin usuarios
+                    </TableCell>
                   </TableRow>
-                ) : filteredUsers.map(u => (
-                  <TableRow key={u.id}>
-                    <TableCell>{u.full_name || '-'}</TableCell>
-                    <TableCell className="font-mono text-xs">{u.email}</TableCell>
-                    <TableCell>{u.rol || '-'}</TableCell>
-                  </TableRow>
-                ))}
+                ) : (
+                  filteredUsers.map((u) => (
+                    <TableRow key={u.id}>
+                      <TableCell>{u.full_name || "-"}</TableCell>
+                      <TableCell className="font-mono text-xs">{u.email}</TableCell>
+                      <TableCell>{u.rol || "-"}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           )}

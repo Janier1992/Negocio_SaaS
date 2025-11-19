@@ -32,7 +32,8 @@ export async function addProductoManual(input: AddProductoInput): Promise<AddPro
   if (!input.nombre?.trim()) errors.nombre = "Nombre requerido";
 
   if (!Number.isFinite(input.precio) || input.precio <= 0) errors.precio = "Precio inválido";
-  if (!Number.isInteger(input.cantidad) || input.cantidad < 0) errors.cantidad = "Cantidad inválida";
+  if (!Number.isInteger(input.cantidad) || input.cantidad < 0)
+    errors.cantidad = "Cantidad inválida";
 
   const stockMin = input.stock_minimo ?? 0;
   if (!Number.isInteger(stockMin) || stockMin < 0) errors.stock_minimo = "Stock mínimo inválido";

@@ -57,7 +57,9 @@ export const ExcelUploadDialog = ({ onUploadComplete }: ExcelUploadDialogProps) 
 
     try {
       const result = await uploadProveedores(file);
-      toast.success(`${result.inserted} proveedores agregados, ${result.duplicates} duplicados omitidos`);
+      toast.success(
+        `${result.inserted} proveedores agregados, ${result.duplicates} duplicados omitidos`,
+      );
       setOpen(false);
       onUploadComplete();
     } catch (error: any) {

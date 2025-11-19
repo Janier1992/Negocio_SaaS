@@ -35,11 +35,11 @@ export function parseMoney(value: unknown, fallback = 0): number {
 
 export function formatCurrencyCOP(value: unknown): string {
   const num = parseMoney(value, NaN);
-  if (!Number.isFinite(num)) return '—';
+  if (!Number.isFinite(num)) return "—";
   try {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: "COP",
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(num);

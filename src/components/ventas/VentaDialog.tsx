@@ -1,9 +1,21 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/newClient";
 import { toast } from "sonner";
@@ -25,7 +37,9 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
   const { empresaId } = useUserProfile();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [productos, setProductos] = useState<Array<{ id: string; nombre: string; precio: number; stock: number }>>([]);
+  const [productos, setProductos] = useState<
+    Array<{ id: string; nombre: string; precio: number; stock: number }>
+  >([]);
   const [cliente, setCliente] = useState("");
   const [clienteEmail, setClienteEmail] = useState("");
   const [clienteDireccion, setClienteDireccion] = useState("");
@@ -41,7 +55,7 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
 
   const fetchProductos = async () => {
     if (!empresaId) return;
-    
+
     const { data, error } = await supabase
       .from("productos")
       .select("id, nombre, precio, stock")
@@ -66,19 +80,19 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
   const updateItem = (index: number, field: keyof ProductoVenta, value: any) => {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
-    
+
     if (field === "producto_id") {
-      const producto = productos.find(p => p.id === value);
+      const producto = productos.find((p) => p.id === value);
       if (producto) {
         newItems[index].precio_unitario = producto.precio;
       }
     }
-    
+
     setItems(newItems);
   };
 
   const getTotal = () => {
-    return items.reduce((sum, item) => sum + (item.cantidad * item.precio_unitario), 0);
+    return items.reduce((sum, item) => sum + item.cantidad * item.precio_unitario, 0);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -118,7 +132,8 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
     for (const item of items) {
       if (!item.producto_id) newErrors.items = "Seleccione producto en cada línea";
       if (!item.cantidad || item.cantidad < 1) newErrors.items = "La cantidad debe ser al menos 1";
-      if (!item.precio_unitario || item.precio_unitario <= 0) newErrors.items = "Precio unitario inválido";
+      if (!item.precio_unitario || item.precio_unitario <= 0)
+        newErrors.items = "Precio unitario inválido";
     }
 
     // Validar stock agregado por producto
@@ -128,7 +143,7 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
       agregados[item.producto_id] = (agregados[item.producto_id] || 0) + item.cantidad;
     }
     for (const [prodId, totalCant] of Object.entries(agregados)) {
-      const prod = productos.find(p => p.id === prodId);
+      const prod = productos.find((p) => p.id === prodId);
       if (prod && totalCant > prod.stock) {
         newErrors.stock = `Cantidad (${totalCant}) excede stock disponible para ${prod.nombre} (${prod.stock})`;
         break;
@@ -145,7 +160,9 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
 
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuario no autenticado");
 
       // Crear venta
@@ -166,7 +183,7 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
       if (ventaError) throw ventaError;
 
       // Crear detalles de venta
-      const detalles = items.map(item => ({
+      const detalles = items.map((item) => ({
         venta_id: venta.id,
         producto_id: item.producto_id,
         cantidad: item.cantidad,
@@ -174,15 +191,13 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
         subtotal: item.cantidad * item.precio_unitario,
       }));
 
-      const { error: detallesError } = await supabase
-        .from("ventas_detalle")
-        .insert(detalles);
+      const { error: detallesError } = await supabase.from("ventas_detalle").insert(detalles);
 
       if (detallesError) throw detallesError;
 
       // Actualizar stock de productos
       for (const item of items) {
-        const producto = productos.find(p => p.id === item.producto_id);
+        const producto = productos.find((p) => p.id === item.producto_id);
         if (producto) {
           const { error: stockError } = await supabase
             .from("productos")
@@ -197,7 +212,9 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
       try {
         const nombreCliente = (cliente || "").trim();
         if (nombreCliente) {
-          const nowIso = venta.created_at ? new Date(venta.created_at).toISOString() : new Date().toISOString();
+          const nowIso = venta.created_at
+            ? new Date(venta.created_at).toISOString()
+            : new Date().toISOString();
           const { data: existing } = await supabase
             .from("clientes")
             .select("id, total_comprado, compras_count, fecha_primera_compra")
@@ -206,16 +223,14 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
             .maybeSingle();
 
           if (!existing) {
-            await supabase
-              .from("clientes")
-              .insert({
-                empresa_id: empresaId,
-                nombre: nombreCliente,
-                fecha_primera_compra: nowIso,
-                fecha_ultima_compra: nowIso,
-                total_comprado: Number(venta.total || 0),
-                compras_count: 1,
-              });
+            await supabase.from("clientes").insert({
+              empresa_id: empresaId,
+              nombre: nombreCliente,
+              fecha_primera_compra: nowIso,
+              fecha_ultima_compra: nowIso,
+              total_comprado: Number(venta.total || 0),
+              compras_count: 1,
+            });
           } else {
             await supabase
               .from("clientes")
@@ -233,20 +248,28 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
 
       // Envío de confirmación por correo con reintentos (no bloquea venta)
       try {
-        const itemsResumen = items.map(i => {
-          const p = productos.find(pp => pp.id === i.producto_id);
-          return { nombre: p?.nombre || i.producto_id, cantidad: i.cantidad, precio: i.precio_unitario };
+        const itemsResumen = items.map((i) => {
+          const p = productos.find((pp) => pp.id === i.producto_id);
+          return {
+            nombre: p?.nombre || i.producto_id,
+            cantidad: i.cantidad,
+            precio: i.precio_unitario,
+          };
         });
-        const res = await sendSaleConfirmationWithRetry({
-          to: emailTrim,
-          clienteNombre: (cliente || "Cliente"),
-          direccion: dirTrim,
-          ventaId: venta.id,
-          empresaId,
-          total: getTotal(),
-          metodoPago,
-          items: itemsResumen,
-        }, 3, 600);
+        const res = await sendSaleConfirmationWithRetry(
+          {
+            to: emailTrim,
+            clienteNombre: cliente || "Cliente",
+            direccion: dirTrim,
+            ventaId: venta.id,
+            empresaId,
+            total: getTotal(),
+            metodoPago,
+            items: itemsResumen,
+          },
+          3,
+          600,
+        );
         if (res.ok) {
           try {
             await supabase
@@ -313,7 +336,9 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
                   <SelectItem value="Transferencia">Transferencia</SelectItem>
                 </SelectContent>
               </Select>
-              {errors.metodo_pago && <p className="text-sm text-destructive mt-1">{errors.metodo_pago}</p>}
+              {errors.metodo_pago && (
+                <p className="text-sm text-destructive mt-1">{errors.metodo_pago}</p>
+              )}
             </div>
           </div>
 
@@ -328,7 +353,9 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
                 placeholder="cliente@correo.com"
                 required
               />
-              {errors.cliente_email && <p className="text-sm text-destructive mt-1">{errors.cliente_email}</p>}
+              {errors.cliente_email && (
+                <p className="text-sm text-destructive mt-1">{errors.cliente_email}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="cliente_direccion">Dirección completa</Label>
@@ -339,7 +366,9 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
                 placeholder="Calle, número, ciudad, país"
                 required
               />
-              {errors.cliente_direccion && <p className="text-sm text-destructive mt-1">{errors.cliente_direccion}</p>}
+              {errors.cliente_direccion && (
+                <p className="text-sm text-destructive mt-1">{errors.cliente_direccion}</p>
+              )}
             </div>
           </div>
 
@@ -387,7 +416,9 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
                       type="number"
                       step="0.01"
                       value={item.precio_unitario}
-                      onChange={(e) => updateItem(index, "precio_unitario", parseFloat(e.target.value))}
+                      onChange={(e) =>
+                        updateItem(index, "precio_unitario", parseFloat(e.target.value))
+                      }
                       placeholder="Precio"
                       required
                     />

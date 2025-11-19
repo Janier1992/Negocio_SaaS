@@ -18,12 +18,16 @@ export default function InvitacionesAceptar() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       setIsAuthenticated(!!session);
     };
     checkAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthenticated(!!session);
     });
 
@@ -74,7 +78,9 @@ export default function InvitacionesAceptar() {
             <CardDescription>Falta el token de la invitación.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="text-sm text-muted-foreground">Verifica el enlace que recibiste o solicita una nueva invitación.</div>
+            <div className="text-sm text-muted-foreground">
+              Verifica el enlace que recibiste o solicita una nueva invitación.
+            </div>
             <Button onClick={() => navigate("/")}>Ir al inicio</Button>
           </CardContent>
         </Card>
@@ -96,14 +102,17 @@ export default function InvitacionesAceptar() {
         <CardHeader>
           <CardTitle>Aceptar invitación</CardTitle>
           <CardDescription>
-            {isAuthenticated ? "Se procesará tu invitación para unirte a la empresa" : "Necesitas iniciar sesión para aceptar la invitación"}
+            {isAuthenticated
+              ? "Se procesará tu invitación para unirte a la empresa"
+              : "Necesitas iniciar sesión para aceptar la invitación"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {!isAuthenticated ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Para continuar, inicia sesión con tu cuenta. Te redirigiremos de vuelta aquí automáticamente.
+                Para continuar, inicia sesión con tu cuenta. Te redirigiremos de vuelta aquí
+                automáticamente.
               </p>
               <Button onClick={goToLogin}>Iniciar sesión</Button>
             </div>
@@ -126,7 +135,9 @@ export default function InvitacionesAceptar() {
                 <span>{errorMsg || "No se pudo aceptar la invitación"}</span>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => void acceptInvitation()}>Reintentar</Button>
+                <Button variant="outline" onClick={() => void acceptInvitation()}>
+                  Reintentar
+                </Button>
                 <Button onClick={() => navigate("/auth")}>Ir a inicio de sesión</Button>
               </div>
             </div>

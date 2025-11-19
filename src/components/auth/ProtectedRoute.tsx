@@ -10,14 +10,16 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     // Check initial session
     const checkAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         setIsAuthenticated(!!session);
       } catch (err: any) {
-        console.error('[Auth] getSession failed:', err?.message || err);
+        console.error("[Auth] getSession failed:", err?.message || err);
         setIsAuthenticated(false);
       }
     };
-    
+
     checkAuth();
 
     // Listen for auth changes
@@ -28,7 +30,7 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       });
       subscription = res.data.subscription;
     } catch (err: any) {
-      console.warn('[Auth] onAuthStateChange failed:', err?.message || err);
+      console.warn("[Auth] onAuthStateChange failed:", err?.message || err);
     }
 
     return () => subscription?.unsubscribe();

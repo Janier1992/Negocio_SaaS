@@ -18,7 +18,10 @@ export default async function handler(req: Request) {
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
     if (!url || !key) {
       return json(
-        { error: "missing_env", message: "SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no configurados" },
+        {
+          error: "missing_env",
+          message: "SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no configurados",
+        },
         500,
       );
     }
@@ -29,11 +32,15 @@ export default async function handler(req: Request) {
 
     const authHeader = req.headers.get("Authorization") || "";
     const jwt = authHeader.replace(/^Bearer\s+/i, "");
-    if (!jwt) return json({ error: "unauthenticated", message: "Falta token de autorización" }, 401);
+    if (!jwt)
+      return json({ error: "unauthenticated", message: "Falta token de autorización" }, 401);
 
     const userRes = await supabaseAdmin.auth.getUser(jwt);
     if (userRes.error || !userRes.data.user) {
-      return json({ error: "unauthenticated", message: "Token inválido o usuario no encontrado" }, 401);
+      return json(
+        { error: "unauthenticated", message: "Token inválido o usuario no encontrado" },
+        401,
+      );
     }
     const user = userRes.data.user;
 
@@ -66,7 +73,8 @@ export default async function handler(req: Request) {
       .maybeSingle();
     if (profErr) return json({ error: "profile_error", message: profErr.message }, 500);
     const empresaId = profile?.empresa_id as string | null;
-    if (!empresaId) return json({ error: "no_empresa", message: "Tu perfil no tiene una empresa asociada" }, 400);
+    if (!empresaId)
+      return json({ error: "no_empresa", message: "Tu perfil no tiene una empresa asociada" }, 400);
 
     const payload = {
       empresa_id: empresaId,
@@ -76,7 +84,11 @@ export default async function handler(req: Request) {
       descripcion,
     };
 
-    const { data, error } = await supabaseAdmin.from("egresos").insert(payload).select("*").single();
+    const { data, error } = await supabaseAdmin
+      .from("egresos")
+      .insert(payload)
+      .select("*")
+      .single();
     if (error) return json({ error: "db_error", message: error.message }, 500);
 
     try {

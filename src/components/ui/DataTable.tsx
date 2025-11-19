@@ -1,7 +1,14 @@
 import React, { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Search, ArrowUpDown, FileDown } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -38,7 +45,12 @@ function toComparable(val: any) {
   return String(val).toLowerCase();
 }
 
-export function DataTable<T extends Record<string, any>>({ columns, data, filename = "export.xlsx", globalSearchPlaceholder = "Buscar..." }: DataTableProps<T>) {
+export function DataTable<T extends Record<string, any>>({
+  columns,
+  data,
+  filename = "export.xlsx",
+  globalSearchPlaceholder = "Buscar...",
+}: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDirection>(null);
   const [globalQuery, setGlobalQuery] = useState("");
@@ -61,7 +73,9 @@ export function DataTable<T extends Record<string, any>>({ columns, data, filena
       const q = globalQuery.toLowerCase();
       return columns.some((c) => {
         const v = c.accessor ? c.accessor(row) : row[c.key];
-        return String(v ?? "").toLowerCase().includes(q);
+        return String(v ?? "")
+          .toLowerCase()
+          .includes(q);
       });
     };
     const byColumn = (row: T) => {
@@ -69,7 +83,9 @@ export function DataTable<T extends Record<string, any>>({ columns, data, filena
         if (!value) return true;
         const col = columns.find((c) => c.key === key);
         const v = col?.accessor ? col.accessor(row) : (row as any)[key];
-        return String(v ?? "").toLowerCase().includes(value.toLowerCase());
+        return String(v ?? "")
+          .toLowerCase()
+          .includes(value.toLowerCase());
       });
     };
     return data.filter((row) => byGlobal(row) && byColumn(row));
@@ -143,7 +159,11 @@ export function DataTable<T extends Record<string, any>>({ columns, data, filena
                 className={`${c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left"} ${c.sortable ? "cursor-pointer select-none" : ""}`}
               >
                 <span className="inline-flex items-center gap-1">
-                  {c.headerRender ? (typeof c.headerRender === "function" ? (c.headerRender as () => React.ReactNode)() : c.headerRender) : c.header}
+                  {c.headerRender
+                    ? typeof c.headerRender === "function"
+                      ? (c.headerRender as () => React.ReactNode)()
+                      : c.headerRender
+                    : c.header}
                   {c.sortable && <ArrowUpDown className="h-3 w-3 text-muted-foreground" />}
                 </span>
               </TableHead>
@@ -167,7 +187,10 @@ export function DataTable<T extends Record<string, any>>({ columns, data, filena
         <TableBody>
           {sorted.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={columns.length} className="text-center text-muted-foreground py-8">
+              <TableCell
+                colSpan={columns.length}
+                className="text-center text-muted-foreground py-8"
+              >
                 No hay datos
               </TableCell>
             </TableRow>
@@ -177,8 +200,21 @@ export function DataTable<T extends Record<string, any>>({ columns, data, filena
                 {columns.map((c) => {
                   const val = c.accessor ? c.accessor(row) : (row as any)[c.key];
                   return (
-                    <TableCell key={`${c.key}-${idx}`} className={c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : ""}>
-                      {c.render ? c.render(row) : typeof val === "string" || typeof val === "number" ? val : String(val ?? "")}
+                    <TableCell
+                      key={`${c.key}-${idx}`}
+                      className={
+                        c.align === "right"
+                          ? "text-right"
+                          : c.align === "center"
+                            ? "text-center"
+                            : ""
+                      }
+                    >
+                      {c.render
+                        ? c.render(row)
+                        : typeof val === "string" || typeof val === "number"
+                          ? val
+                          : String(val ?? "")}
                     </TableCell>
                   );
                 })}

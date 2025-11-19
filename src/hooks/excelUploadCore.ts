@@ -1,4 +1,4 @@
-import { SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from "@supabase/supabase-js";
 
 export const sanitizeCell = (val: any) => {
   if (val == null) return "";
@@ -79,25 +79,29 @@ export async function uploadProductosCore(
   const normalizeKey = (v: any) => sanitizeCell(v || "").toLowerCase();
   const existingCodes = new Set((existingProductos || []).map((p: any) => normalizeKey(p.codigo)));
   const existingCodeToId = new Map<string, string>(
-    (existingProductos || []).map((p: any) => [normalizeKey(p.codigo), String(p.id)])
+    (existingProductos || []).map((p: any) => [normalizeKey(p.codigo), String(p.id)]),
   );
 
   const normalize = (v: any) => sanitizeCell(v || "").toLowerCase();
-  const existingCategoriaMap = new Map<string, string>(categorias.map((c: any) => [normalize(c.nombre), c.id]));
-  const existingProveedorMap = new Map<string, string>(proveedores.map((p: any) => [normalize(p.nombre), p.id]));
+  const existingCategoriaMap = new Map<string, string>(
+    categorias.map((c: any) => [normalize(c.nombre), c.id]),
+  );
+  const existingProveedorMap = new Map<string, string>(
+    proveedores.map((p: any) => [normalize(p.nombre), p.id]),
+  );
 
-  const excelCategorias = Array.from(new Set((jsonData as any[])
-    .map(r => normalize((r as any).categoria))
-    .filter(n => !!n)));
-  const excelProveedores = Array.from(new Set((jsonData as any[])
-    .map(r => normalize((r as any).proveedor))
-    .filter(n => !!n)));
+  const excelCategorias = Array.from(
+    new Set((jsonData as any[]).map((r) => normalize((r as any).categoria)).filter((n) => !!n)),
+  );
+  const excelProveedores = Array.from(
+    new Set((jsonData as any[]).map((r) => normalize((r as any).proveedor)).filter((n) => !!n)),
+  );
 
-  const missingCats = excelCategorias.filter(n => !existingCategoriaMap.has(n));
-  const missingProvs = excelProveedores.filter(n => !existingProveedorMap.has(n));
+  const missingCats = excelCategorias.filter((n) => !existingCategoriaMap.has(n));
+  const missingProvs = excelProveedores.filter((n) => !existingProveedorMap.has(n));
 
   if (missingCats.length > 0) {
-    const toInsert = missingCats.map(nombre => ({ nombre, empresa_id: empresaId }));
+    const toInsert = missingCats.map((nombre) => ({ nombre, empresa_id: empresaId }));
     const { data: insertedCats, error: insCatErr } = await supabase
       .from("categorias")
       .insert(toInsert)
@@ -107,14 +111,14 @@ export async function uploadProductosCore(
         .from("categorias")
         .select("id, nombre")
         .eq("empresa_id", empresaId);
-      for (const c of (refreshed || [])) existingCategoriaMap.set(normalize(c.nombre), c.id);
+      for (const c of refreshed || []) existingCategoriaMap.set(normalize(c.nombre), c.id);
     } else {
-      for (const c of (insertedCats || [])) existingCategoriaMap.set(normalize(c.nombre), c.id);
+      for (const c of insertedCats || []) existingCategoriaMap.set(normalize(c.nombre), c.id);
     }
   }
 
   if (missingProvs.length > 0) {
-    const toInsert = missingProvs.map(nombre => ({ nombre, empresa_id: empresaId }));
+    const toInsert = missingProvs.map((nombre) => ({ nombre, empresa_id: empresaId }));
     const { data: insertedProvs, error: insProvErr } = await supabase
       .from("proveedores")
       .insert(toInsert)
@@ -124,9 +128,9 @@ export async function uploadProductosCore(
         .from("proveedores")
         .select("id, nombre")
         .eq("empresa_id", empresaId);
-      for (const p of (refreshed || [])) existingProveedorMap.set(normalize(p.nombre), p.id);
+      for (const p of refreshed || []) existingProveedorMap.set(normalize(p.nombre), p.id);
     } else {
-      for (const p of (insertedProvs || [])) existingProveedorMap.set(normalize(p.nombre), p.id);
+      for (const p of insertedProvs || []) existingProveedorMap.set(normalize(p.nombre), p.id);
     }
   }
 
@@ -158,13 +162,22 @@ export async function uploadProductosCore(
     return null;
   };
 
-  const precioCol = resolveColumn(["precio", "precio_unitario", "precio unitario", "precio_venta", "precio venta", "valor"]);
+  const precioCol = resolveColumn([
+    "precio",
+    "precio_unitario",
+    "precio unitario",
+    "precio_venta",
+    "precio venta",
+    "valor",
+  ]);
   const stockCol = resolveColumn(["stock", "cantidad"]);
   const stockMinimoCol = resolveColumn(["stock_minimo", "stock minimo", "minimo", "min"]);
 
   if (!precioCol) {
     // Permitimos continuar pero reportamos que no se encontró columna de precio
-    console.warn("[ExcelUpload] No se detectó columna de precio en el Excel. Se usará 0 por defecto.");
+    console.warn(
+      "[ExcelUpload] No se detectó columna de precio en el Excel. Se usará 0 por defecto.",
+    );
   }
 
   // Estadísticas de validación
@@ -180,7 +193,8 @@ export async function uploadProductosCore(
       const precioRaw = precioCol ? (row as any)[precioCol] : undefined;
       const precioNum = parseDecimal(precioRaw, 0);
       if (precioCol) recognizedPriceRows += 1;
-      if (precioNum > 0) parsedPositivePrices += 1; else parsedZeroPrices += 1;
+      if (precioNum > 0) parsedPositivePrices += 1;
+      else parsedZeroPrices += 1;
 
       return {
         codigo,
@@ -190,11 +204,14 @@ export async function uploadProductosCore(
         proveedor_id: row.proveedor ? proveedorMap.get(normalize(row.proveedor)) || null : null,
         precio: precioNum,
         stock: parseInteger(stockCol ? (row as any)[stockCol] : row.stock, 0),
-        stock_minimo: parseInteger(stockMinimoCol ? (row as any)[stockMinimoCol] : row.stock_minimo, 0),
+        stock_minimo: parseInteger(
+          stockMinimoCol ? (row as any)[stockMinimoCol] : row.stock_minimo,
+          0,
+        ),
         empresa_id: empresaId,
       };
     })
-    .filter(p => p !== null);
+    .filter((p) => p !== null);
 
   const updates = (jsonData as any[])
     .map((row: any) => {
@@ -206,7 +223,8 @@ export async function uploadProductosCore(
       const precioRaw = precioCol ? (row as any)[precioCol] : undefined;
       const precioNum = parseDecimal(precioRaw, 0);
       if (precioCol) recognizedPriceRows += 1;
-      if (precioNum > 0) parsedPositivePrices += 1; else parsedZeroPrices += 1;
+      if (precioNum > 0) parsedPositivePrices += 1;
+      else parsedZeroPrices += 1;
       return {
         id,
         payload: {
@@ -216,7 +234,10 @@ export async function uploadProductosCore(
           proveedor_id: row.proveedor ? proveedorMap.get(normalize(row.proveedor)) || null : null,
           precio: precioNum,
           stock: parseInteger(stockCol ? (row as any)[stockCol] : row.stock, 0),
-          stock_minimo: parseInteger(stockMinimoCol ? (row as any)[stockMinimoCol] : row.stock_minimo, 0),
+          stock_minimo: parseInteger(
+            stockMinimoCol ? (row as any)[stockMinimoCol] : row.stock_minimo,
+            0,
+          ),
         },
       };
     })

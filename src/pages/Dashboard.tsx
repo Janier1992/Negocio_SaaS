@@ -7,8 +7,21 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { toast } from "@/components/ui/sonner";
 import { createLogger } from "@/lib/logger";
 import { startOfMonth, startOfDay, subDays, format } from "date-fns";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
@@ -42,7 +55,7 @@ const InteractiveLineChart = ({
     return data
       .map((d, i) => {
         const x = padding + i * xStep;
-        const y = padding + (height - padding * 2) * (1 - (d.total / Math.max(1, max)));
+        const y = padding + (height - padding * 2) * (1 - d.total / Math.max(1, max));
         return `${i === 0 ? "M" : "L"}${x},${y}`;
       })
       .join(" ");
@@ -62,7 +75,10 @@ const InteractiveLineChart = ({
     if (denom === 0) return "";
     const slope = (n * sumXY - sumX * sumY) / denom;
     const intercept = (sumY - slope * sumX) / n;
-    const trendPoints = xs.map((x, i) => ({ label: current[i].label, total: intercept + slope * x }));
+    const trendPoints = xs.map((x, i) => ({
+      label: current[i].label,
+      total: intercept + slope * x,
+    }));
     return toPath(trendPoints, maxCurrent);
   })();
 
@@ -78,43 +94,67 @@ const InteractiveLineChart = ({
 
   const handleLeave = () => setHoverIndex(null);
 
-  const tooltipData = hoverIndex != null ? {
-    label: labels[hoverIndex] ?? "",
-    current: current[hoverIndex]?.total ?? 0,
-    previous: previous[hoverIndex]?.total ?? 0,
-    x: padding + hoverIndex * xStep,
-    y: padding + (height - padding * 2) * (1 - ((current[hoverIndex]?.total ?? 0) / Math.max(1, maxCurrent))),
-  } : null;
+  const tooltipData =
+    hoverIndex != null
+      ? {
+          label: labels[hoverIndex] ?? "",
+          current: current[hoverIndex]?.total ?? 0,
+          previous: previous[hoverIndex]?.total ?? 0,
+          x: padding + hoverIndex * xStep,
+          y:
+            padding +
+            (height - padding * 2) *
+              (1 - (current[hoverIndex]?.total ?? 0) / Math.max(1, maxCurrent)),
+        }
+      : null;
 
   return (
     <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} role="presentation">
       <g>
         {/* axes */}
-        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#e5e7eb" />
+        <line
+          x1={padding}
+          y1={height - padding}
+          x2={width - padding}
+          y2={height - padding}
+          stroke="#e5e7eb"
+        />
         <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#e5e7eb" />
         {/* previous period */}
-        {previousPath && (
-          <path d={previousPath} fill="none" stroke="#9ca3af" strokeWidth={2} />
-        )}
+        {previousPath && <path d={previousPath} fill="none" stroke="#9ca3af" strokeWidth={2} />}
         {/* current period */}
-        {currentPath && (
-          <path d={currentPath} fill="none" stroke="#3b82f6" strokeWidth={2.5} />
-        )}
+        {currentPath && <path d={currentPath} fill="none" stroke="#3b82f6" strokeWidth={2.5} />}
         {/* trend line */}
         {trendPath && (
           <path d={trendPath} fill="none" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 4" />
         )}
         {/* hover tracker */}
-        <rect x={0} y={0} width={width} height={height} fill="transparent" onMouseMove={handleMove} onMouseLeave={handleLeave} aria-hidden="true" />
+        <rect
+          x={0}
+          y={0}
+          width={width}
+          height={height}
+          fill="transparent"
+          onMouseMove={handleMove}
+          onMouseLeave={handleLeave}
+          aria-hidden="true"
+        />
         {/* tooltip */}
         {tooltipData && (
           <g>
             <circle cx={tooltipData.x} cy={tooltipData.y} r={3} fill="#3b82f6" />
-            <foreignObject x={Math.min(width - 180, Math.max(padding, tooltipData.x + 8))} y={Math.max(padding, tooltipData.y - 40)} width={180} height={60}>
+            <foreignObject
+              x={Math.min(width - 180, Math.max(padding, tooltipData.x + 8))}
+              y={Math.max(padding, tooltipData.y - 40)}
+              width={180}
+              height={60}
+            >
               <div className="rounded bg-white shadow px-2 py-1 border text-xs" aria-live="polite">
                 <div className="font-medium">{tooltipData.label}</div>
                 <div>Actual: {formatValue(tooltipData.current)}</div>
-                <div className="text-muted-foreground">Previo: {formatValue(tooltipData.previous)}</div>
+                <div className="text-muted-foreground">
+                  Previo: {formatValue(tooltipData.previous)}
+                </div>
               </div>
             </foreignObject>
           </g>
@@ -134,14 +174,22 @@ const Dashboard = () => {
     valorInventario: 0,
     alertasActivas: 0,
   });
-  const [topProducts, setTopProducts] = useState<Array<{ nombre: string; cantidad: number; valor: number }>>([]);
-  const [recentAlerts, setRecentAlerts] = useState<Array<{ tipo: string; titulo: string; mensaje: string }>>([]);
-  const [salesByCategory, setSalesByCategory] = useState<Array<{ categoria: string; total: number }>>([]);
+  const [topProducts, setTopProducts] = useState<
+    Array<{ nombre: string; cantidad: number; valor: number }>
+  >([]);
+  const [recentAlerts, setRecentAlerts] = useState<
+    Array<{ tipo: string; titulo: string; mensaje: string }>
+  >([]);
+  const [salesByCategory, setSalesByCategory] = useState<
+    Array<{ categoria: string; total: number }>
+  >([]);
   const [salesTrend, setSalesTrend] = useState<Array<{ label: string; total: number }>>([]);
   const [salesTrendPrev, setSalesTrendPrev] = useState<Array<{ label: string; total: number }>>([]);
   const [dateFrom, setDateFrom] = useState<string | null>(null);
   const [dateTo, setDateTo] = useState<string | null>(null);
-  const [inventoryByCategory, setInventoryByCategory] = useState<Array<{ categoria: string; normal: number; bajo: number; critico: number }>>([]);
+  const [inventoryByCategory, setInventoryByCategory] = useState<
+    Array<{ categoria: string; normal: number; bajo: number; critico: number }>
+  >([]);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [criticalStockCount, setCriticalStockCount] = useState(0);
   const prevAlertCounts = useRef<{ low: number; critical: number }>({ low: 0, critical: 0 });
@@ -169,22 +217,20 @@ const Dashboard = () => {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "ventas", filter: `empresa_id=eq.${empresaId}` },
-        () => fetchMetrics({ background: true })
+        () => fetchMetrics({ background: true }),
       )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "ventas_detalle" },
-        () => fetchMetrics({ background: true })
+      .on("postgres_changes", { event: "*", schema: "public", table: "ventas_detalle" }, () =>
+        fetchMetrics({ background: true }),
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "alertas", filter: `empresa_id=eq.${empresaId}` },
-        () => fetchMetrics({ background: true })
+        () => fetchMetrics({ background: true }),
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "productos", filter: `empresa_id=eq.${empresaId}` },
-        () => fetchMetrics({ background: true })
+        () => fetchMetrics({ background: true }),
       )
       .subscribe();
 
@@ -238,12 +284,15 @@ const Dashboard = () => {
           log.warn("Error obteniendo categorías", categoriasRes.error);
         }
       } else {
-        for (const c of (categoriasRes.data || [])) {
+        for (const c of categoriasRes.data || []) {
           if (c?.id) categoriasMap.set(String(c.id), String(c.nombre || "Sin categoría"));
         }
       }
       const productosEnStock = productos.reduce((sum, p: any) => sum + (p.stock || 0), 0);
-      const valorInventario = productos.reduce((sum, p: any) => sum + ((p.precio || 0) * (p.stock || 0)), 0);
+      const valorInventario = productos.reduce(
+        (sum, p: any) => sum + (p.precio || 0) * (p.stock || 0),
+        0,
+      );
 
       // Ventas del periodo (con rango opcional)
       const desde = dateFrom ? new Date(dateFrom).toISOString() : getDesde();
@@ -260,12 +309,22 @@ const Dashboard = () => {
           log.warn("Error obteniendo ventas del periodo", ventasRes.error);
         }
       }
-      const ventasDelPeriodo = (ventasRes.data || []).reduce((sum: number, v: any) => sum + (v.total || 0), 0);
+      const ventasDelPeriodo = (ventasRes.data || []).reduce(
+        (sum: number, v: any) => sum + (v.total || 0),
+        0,
+      );
 
       // Alertas activas (y conteo por tipo) usando servicio compartido
       let alertRows: any[] = [];
       try {
-        alertRows = await fetchAlerts({ empresaId, desde, hasta, leida: false, orderBy: "created_at", orderAsc: false });
+        alertRows = await fetchAlerts({
+          empresaId,
+          desde,
+          hasta,
+          leida: false,
+          orderBy: "created_at",
+          orderAsc: false,
+        });
       } catch (e: any) {
         log.warn("Error obteniendo alertas", e?.message || e);
       }
@@ -294,7 +353,9 @@ const Dashboard = () => {
           toast.warning(`Nuevas alertas de stock bajo: +${lowCount - prevAlertCounts.current.low}`);
         }
         if (criticalCount > prevAlertCounts.current.critical) {
-          toast.error(`Nuevas alertas de stock crítico: +${criticalCount - prevAlertCounts.current.critical}`);
+          toast.error(
+            `Nuevas alertas de stock crítico: +${criticalCount - prevAlertCounts.current.critical}`,
+          );
         }
       }
       prevAlertCounts.current = { low: lowCount, critical: criticalCount };
@@ -322,10 +383,18 @@ const Dashboard = () => {
       }
 
       const aggMap = new Map<string, { nombre: string; cantidad: number; valor: number }>();
-      const productosMap = new Map<string, { categoria: string; nombre?: string; stock_minimo?: number; stock?: number }>();
+      const productosMap = new Map<
+        string,
+        { categoria: string; nombre?: string; stock_minimo?: number; stock?: number }
+      >();
       for (const p of productos as any[]) {
         const catName = categoriasMap.get(String(p.categoria_id)) || "Sin categoría";
-        productosMap.set(p.id as string, { categoria: catName, nombre: p.nombre, stock_minimo: p.stock_minimo, stock: p.stock });
+        productosMap.set(p.id as string, {
+          categoria: catName,
+          nombre: p.nombre,
+          stock_minimo: p.stock_minimo,
+          stock: p.stock,
+        });
       }
 
       const catAgg = new Map<string, number>();
@@ -359,7 +428,7 @@ const Dashboard = () => {
 
       // Tendencia diaria en el periodo
       const dailyMap = new Map<string, number>();
-      for (const v of (ventasRes.data || [])) {
+      for (const v of ventasRes.data || []) {
         const label = format(new Date(v.created_at), period === "hoy" ? "HH:mm" : "dd MMM");
         dailyMap.set(label, (dailyMap.get(label) || 0) + (v.total || 0));
       }
@@ -380,11 +449,14 @@ const Dashboard = () => {
         .lte("created_at", prevHasta.toISOString());
       if (!ventasPrevRes.error) {
         const prevDailyMap = new Map<string, number>();
-        for (const v of (ventasPrevRes.data || [])) {
+        for (const v of ventasPrevRes.data || []) {
           const label = format(new Date(v.created_at), period === "hoy" ? "HH:mm" : "dd MMM");
           prevDailyMap.set(label, (prevDailyMap.get(label) || 0) + (v.total || 0));
         }
-        const prevTrend = Array.from(prevDailyMap.entries()).map(([label, total]) => ({ label, total }));
+        const prevTrend = Array.from(prevDailyMap.entries()).map(([label, total]) => ({
+          label,
+          total,
+        }));
         setSalesTrendPrev(prevTrend);
       } else {
         const code = (ventasPrevRes.error as any)?.code || "";
@@ -395,7 +467,12 @@ const Dashboard = () => {
 
       // Alertas recientes (mismo servicio, misma fuente)
       try {
-        const recentRows = await fetchAlerts({ empresaId, orderBy: "created_at", orderAsc: false, limit: 4 });
+        const recentRows = await fetchAlerts({
+          empresaId,
+          orderBy: "created_at",
+          orderAsc: false,
+          limit: 4,
+        });
         setRecentAlerts(recentRows as any);
       } catch (e: any) {
         log.warn("Error obteniendo alertas recientes", e?.message || e);
@@ -415,7 +492,9 @@ const Dashboard = () => {
         agg[level] += 1;
         byCategoryLevels.set(categoria, agg);
       }
-      setInventoryByCategory(Array.from(byCategoryLevels.entries()).map(([categoria, v]) => ({ categoria, ...v })));
+      setInventoryByCategory(
+        Array.from(byCategoryLevels.entries()).map(([categoria, v]) => ({ categoria, ...v })),
+      );
     } catch (error: any) {
       const msg = String(error?.message || "").toLowerCase();
       const isAbort = msg.includes("abort") || /err_aborted/i.test(msg);
@@ -437,21 +516,39 @@ const Dashboard = () => {
     }
   };
 
-  const currencyFormatter = useMemo(() => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }), []);
-  const percentFormatter = useMemo(() => new Intl.NumberFormat("es-MX", { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 }), []);
+  const currencyFormatter = useMemo(
+    () => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }),
+    [],
+  );
+  const percentFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat("es-MX", {
+        style: "percent",
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }),
+    [],
+  );
 
   if (profileLoading || loading) {
     return <div className="flex items-center justify-center h-96">Cargando...</div>;
   }
 
   if (!empresaId) {
-    return <div className="flex items-center justify-center h-96 text-muted-foreground">No hay empresa asociada a tu usuario.</div>;
+    return (
+      <div className="flex items-center justify-center h-96 text-muted-foreground">
+        No hay empresa asociada a tu usuario.
+      </div>
+    );
   }
 
   const maxCatTotal = Math.max(1, ...salesByCategory.map((c) => c.total));
   const maxTrendTotal = Math.max(1, ...salesTrend.map((t) => t.total));
   const maxPrevTrendTotal = Math.max(1, ...salesTrendPrev.map((t) => t.total));
-  const maxInventoryTotal = Math.max(1, ...inventoryByCategory.map((c) => (c.normal + c.bajo + c.critico)));
+  const maxInventoryTotal = Math.max(
+    1,
+    ...inventoryByCategory.map((c) => c.normal + c.bajo + c.critico),
+  );
 
   const getAlertClasses = (tipo: string) => {
     if (tipo === "pago_vencido") return "bg-destructive/10 border border-destructive/20";
@@ -483,17 +580,37 @@ const Dashboard = () => {
         </div>
         <div className="mt-3 flex flex-col sm:flex-row gap-2 sm:items-end">
           <div className="flex flex-col">
-            <label htmlFor="date-from" className="text-xs text-muted-foreground">Desde</label>
-            <Input id="date-from" type="date" value={dateFrom || ""} onChange={(e) => setDateFrom(e.target.value)} />
+            <label htmlFor="date-from" className="text-xs text-muted-foreground">
+              Desde
+            </label>
+            <Input
+              id="date-from"
+              type="date"
+              value={dateFrom || ""}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
           </div>
           <div className="flex flex-col">
-            <label htmlFor="date-to" className="text-xs text-muted-foreground">Hasta</label>
-            <Input id="date-to" type="date" value={dateTo || ""} onChange={(e) => setDateTo(e.target.value)} />
+            <label htmlFor="date-to" className="text-xs text-muted-foreground">
+              Hasta
+            </label>
+            <Input
+              id="date-to"
+              type="date"
+              value={dateTo || ""}
+              onChange={(e) => setDateTo(e.target.value)}
+            />
           </div>
           <Button variant="secondary" onClick={() => loadDashboard(true)} disabled={updating}>
             Aplicar
           </Button>
-          <Button variant="ghost" onClick={() => { setDateFrom(null as any); setDateTo(null as any); }}>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setDateFrom(null as any);
+              setDateTo(null as any);
+            }}
+          >
             Limpiar
           </Button>
         </div>
@@ -633,8 +750,12 @@ const Dashboard = () => {
                       <TableRow key={idx}>
                         <TableCell className="font-medium text-foreground">{p.nombre}</TableCell>
                         <TableCell className="text-right">{p.cantidad}</TableCell>
-                        <TableCell className="text-right">{currencyFormatter.format(p.valor)}</TableCell>
-                        <TableCell className="text-right">{percentFormatter.format(share)}</TableCell>
+                        <TableCell className="text-right">
+                          {currencyFormatter.format(p.valor)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {percentFormatter.format(share)}
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -660,11 +781,28 @@ const Dashboard = () => {
                     return (
                       <div key={c.categoria} className="flex flex-col items-center gap-2">
                         <div className="flex items-end gap-1 h-32">
-                          <div className="w-3 bg-muted rounded" style={{ height: `${scale(c.normal)}%` }} title={`Normal: ${c.normal}`} />
-                          <div className="w-3 bg-warning rounded" style={{ height: `${scale(c.bajo)}%` }} title={`Bajo: ${c.bajo}`} />
-                          <div className="w-3 bg-destructive rounded" style={{ height: `${scale(c.critico)}%` }} title={`Crítico: ${c.critico}`} />
+                          <div
+                            className="w-3 bg-muted rounded"
+                            style={{ height: `${scale(c.normal)}%` }}
+                            title={`Normal: ${c.normal}`}
+                          />
+                          <div
+                            className="w-3 bg-warning rounded"
+                            style={{ height: `${scale(c.bajo)}%` }}
+                            title={`Bajo: ${c.bajo}`}
+                          />
+                          <div
+                            className="w-3 bg-destructive rounded"
+                            style={{ height: `${scale(c.critico)}%` }}
+                            title={`Crítico: ${c.critico}`}
+                          />
                         </div>
-                        <span className="text-[10px] text-muted-foreground text-center w-24 truncate" title={c.categoria}>{c.categoria}</span>
+                        <span
+                          className="text-[10px] text-muted-foreground text-center w-24 truncate"
+                          title={c.categoria}
+                        >
+                          {c.categoria}
+                        </span>
                       </div>
                     );
                   })}
@@ -677,7 +815,10 @@ const Dashboard = () => {
                 <p className="text-sm text-muted-foreground">Sin alertas recientes.</p>
               ) : (
                 recentAlerts.map((alert, index) => (
-                  <div key={index} className={`flex items-start gap-3 p-3 rounded-lg ${getAlertClasses(alert.tipo)}`}>
+                  <div
+                    key={index}
+                    className={`flex items-start gap-3 p-3 rounded-lg ${getAlertClasses(alert.tipo)}`}
+                  >
                     <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
                       <p className="font-medium text-foreground">{alert.tipo}</p>
