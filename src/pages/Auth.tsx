@@ -14,6 +14,8 @@ import {
   getSupabaseEnv,
   formatAuthErrorMessage,
 } from "@/integrations/supabase/health";
+import { createLogger } from "@/lib/logger";
+import { reportError, reportInfo } from "@/services/monitoring";
 
 const SITE_URL =
   import.meta.env.MODE === "development"
@@ -39,6 +41,12 @@ export default function Auth() {
   const [newPassword2, setNewPassword2] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
   const envOk = getSupabaseEnv().isConfigured;
+  // Estado de validación ligera para habilitar botón solo cuando hay datos requeridos
+  const isRegisterRequiredFilled = (!isLogin)
+    ? Boolean(businessName?.trim() && fullName?.trim() && email?.trim() && password?.trim())
+    : Boolean(email?.trim() && password?.trim());
+  const emailLooksValid = validateEmail(email || "");
+  const passwordMeetsPolicy = validatePassword(password || "");
 
   useEffect(() => {
     // Check if user is already logged in
@@ -83,11 +91,15 @@ export default function Auth() {
       const env = getSupabaseEnv();
       if (!env.isConfigured) {
         toast.error("Faltan variables de entorno: VITE_SUPABASE_URL y/o VITE_SUPABASE_ANON_KEY");
+        reportError({ scope: "AuthHealth", message: "Entorno incompleto", extra: env });
         return;
       }
       const health = await checkAuthConnectivity();
       if (!health.ok) {
         toast.error(formatAuthErrorMessage(health));
+        reportError({ scope: "AuthHealth", message: "Conectividad Auth fallida", extra: health });
+      } else {
+        reportInfo({ scope: "AuthHealth", message: "Auth OK", extra: health });
       }
     };
     void runHealth();
@@ -114,18 +126,21 @@ export default function Auth() {
     }
   }, [location.search]);
 
+  const log = createLogger("AuthFlow");
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
       if (isLogin) {
+        log.info("Login intento", { email });
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
         if (error) {
+          reportError({ scope: "Login", message: "Error de login", error, extra: { email } });
           const msg = String(error.message || "").toLowerCase();
           if (msg.includes("confirm") || msg.includes("not confirmed")) {
             toast.error("Debes confirmar tu correo antes de iniciar sesión");
@@ -136,6 +151,7 @@ export default function Auth() {
         }
 
         toast.success("Inicio de sesión exitoso");
+        reportInfo({ scope: "Login", message: "Login correcto", extra: { email } });
         navigate(redirectPath);
       } else {
         // Registro: crear cuenta y empresa en un solo paso usando función Edge
@@ -162,6 +178,10 @@ export default function Auth() {
         }
 
         try {
+          log.info("Registro via Edge", {
+            email: trimmedEmail,
+            business: trimmedBusinessName,
+          });
           const res = await adminCreateUser(
             trimmedEmail,
             trimmedPassword,
@@ -178,6 +198,7 @@ export default function Auth() {
             });
             if (loginErr) throw loginErr;
             toast.success("Cuenta y empresa creadas. Sesión iniciada");
+            reportInfo({ scope: "Registro", message: "Bootstrap OK", extra: { email: trimmedEmail } });
             navigate(redirectPath, { state: { hydratingEmpresa: true, postCreate: true } });
             return;
           }
@@ -192,8 +213,10 @@ export default function Auth() {
             toast.info(
               "No se pudo conectar con la función de registro (Edge). Usaremos el registro estándar.",
             );
+            reportError({ scope: "Registro", message: "Edge no disponible", error: bootErr });
           }
           // Fallback a signUp estándar si la función no está disponible
+          log.info("Fallback a signUp estándar", { email: trimmedEmail });
           const { data, error } = await supabase.auth.signUp({
             email: trimmedEmail,
             password: trimmedPassword,
@@ -225,9 +248,11 @@ export default function Auth() {
                 }
               }
               toast.success("Cuenta y empresa creadas");
+              reportInfo({ scope: "Registro", message: "SignUp + Empresa OK", extra: { email: trimmedEmail } });
               navigate(redirectPath, { state: { hydratingEmpresa: true, postCreate: true } });
             } catch (e: any) {
               toast.success("Cuenta creada exitosamente");
+              reportInfo({ scope: "Registro", message: "SignUp OK (sin empresa)", extra: { email: trimmedEmail } });
               navigate(redirectPath);
             }
           } else {
@@ -235,6 +260,7 @@ export default function Auth() {
             const resend = await resendSignupConfirmationWithRetry(trimmedEmail, 3, 600);
             if (resend.ok) {
               toast.success("Registro iniciado. Hemos reenviado el correo de confirmación.");
+              reportInfo({ scope: "Registro", message: "Confirmación re‑enviada", extra: { email: trimmedEmail } });
             } else {
               const low = String(resend.error || "").toLowerCase();
               if (/redirect.*(invalid|not allowed|accepted)/i.test(low)) {
@@ -250,6 +276,7 @@ export default function Auth() {
                   "Registro iniciado. Revisa tu correo para confirmar la cuenta (puede tardar unos minutos).",
                 );
               }
+              reportError({ scope: "Registro", message: "Error reenviando confirmación", error: resend.error });
             }
             setIsLogin(true);
             setPendingConfirmation(true);
@@ -257,6 +284,7 @@ export default function Auth() {
         }
       }
     } catch (error: any) {
+      reportError({ scope: "AuthFlow", message: "Excepción en handleAuth", error });
       const msg = String(error?.message || "");
       const low = msg.toLowerCase();
       if (low.includes("database error saving new user")) {
@@ -283,6 +311,7 @@ export default function Auth() {
           }
         } catch (bootErr: any) {
           const bmsg = String(bootErr?.message || bootErr?.error || "");
+          reportError({ scope: "Registro", message: "Bootstrap fallido", error: bootErr });
           toast.error(
             bmsg ||
               "No se pudo crear la cuenta. Verifica que el correo no exista y que el dominio de redirección esté permitido en Supabase (añade http://localhost:8080 en Authentication → URL Configuration).",
@@ -449,16 +478,17 @@ export default function Auth() {
                 required
                 minLength={8}
               />
+              {!isLogin && password && !passwordMeetsPolicy && (
+                <p className="text-xs text-muted-foreground">
+                  La contraseña debe tener mínimo 10 caracteres, mayúscula, minúscula, número y símbolo.
+                </p>
+              )}
             </div>
 
             <Button
               type="submit"
               className="w-full"
-              disabled={
-                isLoading ||
-                !envOk ||
-                (!isLogin && (!validateEmail(email) || !validatePassword(password)))
-              }
+              disabled={isLoading || !isRegisterRequiredFilled}
             >
               {isLoading ? (
                 <>
@@ -471,6 +501,15 @@ export default function Auth() {
                 "Crear Cuenta"
               )}
             </Button>
+            {!envOk && (
+              <div className="mt-2 text-xs text-amber-600">
+                Faltan variables de entorno de Supabase (URL/Anon Key). El registro fallará hasta
+                configurarlas en el despliegue.
+              </div>
+            )}
+            {!isLogin && email && !emailLooksValid && (
+              <div className="text-xs text-red-500">Ingresa un correo válido.</div>
+            )}
           </form>
 
           {isLogin && !recoveryMode && (

@@ -4,10 +4,13 @@ import "./index.css";
 
 // Redirección en producción al BASE_URL para evitar pantalla en blanco
 if (import.meta.env.PROD) {
-  const base = import.meta.env.BASE_URL || "/";
-  const path = window.location.pathname;
+  const base = (import.meta.env.BASE_URL || "/").replace(/\/+/g, "/");
+  const path = window.location.pathname.replace(/\/+/g, "/");
+  // En móviles, algunos navegadores lanzan la app en la raíz del dominio.
+  // Si detectamos que no estamos bajo la subruta, reubicamos a la base.
   if (base !== "/" && !path.startsWith(base)) {
-    window.location.replace(base);
+    const target = base.endsWith("/") ? base : `${base}/`;
+    window.location.replace(target);
   }
 }
 
