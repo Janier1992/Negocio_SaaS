@@ -22,13 +22,13 @@ export function MobileBottomNav() {
 
     const mainNavItems = [
         { title: "Inicio", url: "/", icon: LayoutDashboard },
+        { title: "Productos", url: "/productos", icon: Package },
         { title: "Ventas", url: "/ventas", icon: ShoppingCart },
-        { title: "Inventario", url: "/inventario", icon: Layers },
         { title: "Gastos", url: "/gastos", icon: Receipt },
     ];
 
     const moreNavItems = [
-        { title: "Productos", url: "/productos", icon: Package },
+        { title: "Inventario", url: "/inventario", icon: Layers },
         { title: "Proveedores", url: "/proveedores", icon: Truck },
         { title: "Clientes", url: "/clientes", icon: Users },
         { title: "Alertas IA", url: "/alertas", icon: AlertTriangle },

@@ -47,7 +47,7 @@ function VentasContent() {
                     .maybeSingle();
 
                 if (existingClient) {
-                    clientId = existingClient.id;
+                    clientId = (existingClient as any).id;
                     // Optional: Update client info could go here
                 } else {
                     // Create new
@@ -60,12 +60,14 @@ function VentasContent() {
                             email: customerData.email || null,
                             phone: customerData.phone || null,
                             address: "Registrado en POS"
-                        })
+                        } as any)
                         .select()
                         .single();
 
                     if (clientError) throw clientError;
-                    clientId = newClient.id;
+                    if (newClient) {
+                        clientId = (newClient as any).id;
+                    }
                 }
             }
 
@@ -126,19 +128,19 @@ function VentasContent() {
             description="Punto de venta e historial de transacciones."
         >
             <Tabs defaultValue="pos" className="w-full space-y-4">
-                <div className="flex items-center justify-between">
-                    <TabsList className="grid w-[400px] grid-cols-2">
-                        <TabsTrigger value="pos" className="gap-2">
+                <div className="flex items-center justify-between px-1">
+                    <TabsList className="grid w-full md:w-[400px] grid-cols-2">
+                        <TabsTrigger value="pos" className="gap-2 text-xs md:text-sm">
                             <ShoppingCart className="h-4 w-4" /> Punto de Venta
                         </TabsTrigger>
-                        <TabsTrigger value="history" className="gap-2">
-                            <History className="h-4 w-4" /> Historial de Ventas
+                        <TabsTrigger value="history" className="gap-2 text-xs md:text-sm">
+                            <History className="h-4 w-4" /> Historial
                         </TabsTrigger>
                     </TabsList>
                 </div>
 
-                <TabsContent value="pos" className="space-y-4">
-                    <div className="h-[calc(85dvh-8rem)] -mt-2 p-0 md:p-1 gap-0 flex flex-col relative">
+                <TabsContent value="pos" className="space-y-0 md:space-y-4 h-full">
+                    <div className="h-[calc(100vh-180px)] md:h-[calc(85dvh-8rem)] -mx-2 md:mx-0 p-0 gap-0 flex flex-col relative">
                         <div className="flex flex-col lg:flex-row h-full gap-4 max-h-full overflow-hidden">
                             {/* Left: Catalog */}
                             <div className="flex-1 min-w-0 bg-card rounded-lg border shadow-sm p-4 overflow-hidden flex flex-col">

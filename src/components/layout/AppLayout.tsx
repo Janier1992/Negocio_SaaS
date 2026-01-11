@@ -58,7 +58,7 @@ export const AppLayout = () => {
           </header>
 
           {/* MAIN CONTENT */}
-          <main className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 pb-24 md:pb-8">
+          <main className="flex-1 overflow-y-auto p-2 md:p-8 space-y-8 pb-24 md:pb-8">
             <Outlet />
           </main>
 

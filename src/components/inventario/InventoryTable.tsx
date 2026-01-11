@@ -229,16 +229,16 @@ export function InventoryTable({ productos, onEdit, onDelete, onBulkDelete, isLo
             </div>
 
             {/* Mobile View (Cards) */}
-            <div className="md:hidden space-y-4">
+            <div className="md:hidden space-y-3">
                 {filteredProducts.length === 0 ? (
                     <div className="text-center p-8 text-muted-foreground bg-slate-50 dark:bg-slate-900 rounded-lg border border-dashed">
                         No se encontraron productos
                     </div>
                 ) : (
                     filteredProducts.map((producto) => (
-                        <div key={producto.id} className="bg-white dark:bg-card p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-3 relative overflow-hidden">
+                        <div key={producto.id} className="bg-white dark:bg-card p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-2 relative overflow-hidden">
                             {/* Selection Checkbox Overlay */}
-                            <div className="absolute top-4 right-4 z-10">
+                            <div className="absolute top-3 right-3 z-10">
                                 <input
                                     type="checkbox"
                                     checked={selectedIds.has(producto.id)}
@@ -247,26 +247,26 @@ export function InventoryTable({ productos, onEdit, onDelete, onBulkDelete, isLo
                                 />
                             </div>
 
-                            <div className="flex gap-4">
+                            <div className="flex gap-3">
                                 {/* Image */}
-                                <div className="h-20 w-20 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                <div className="h-16 w-16 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden flex-shrink-0 flex items-center justify-center">
                                     {(producto as any).image_url ? (
                                         <img src={(producto as any).image_url} alt={producto.nombre} className="h-full w-full object-cover" />
                                     ) : (
-                                        <Edit className="h-8 w-8 text-slate-300" />
+                                        <Edit className="h-6 w-6 text-slate-300" />
                                     )}
                                 </div>
 
                                 {/* Info */}
-                                <div className="flex-1 min-w-0">
+                                <div className="flex-1 min-w-0 pr-6">
                                     <div className="flex flex-col">
-                                        <span className="text-xs font-mono text-slate-500 mb-0.5">{producto.codigo || "S/C"}</span>
-                                        <h4 className="font-bold text-slate-900 dark:text-white truncate pr-6">{producto.nombre}</h4>
-                                        <p className="text-xs text-slate-500 truncate">{(producto as any).categorias?.nombre || "Sin categoría"}</p>
+                                        <span className="text-[10px] font-mono text-slate-500 mb-0.5">{producto.codigo || "S/C"}</span>
+                                        <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate leading-tight">{producto.nombre}</h4>
+                                        <p className="text-[11px] text-slate-500 truncate mt-0.5">{(producto as any).categorias?.nombre || "Sin categoría"}</p>
                                     </div>
 
-                                    <div className="flex items-end justify-between mt-3">
-                                        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-xs font-medium">
+                                    <div className="flex items-end justify-between mt-2">
+                                        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-[10px] font-medium">
                                             <span>Stock:</span>
                                             <span className={producto.stock <= producto.stock_minimo ? "text-red-500 font-bold" : "text-slate-800 dark:text-white"}>
                                                 {producto.stock}
@@ -275,23 +275,23 @@ export function InventoryTable({ productos, onEdit, onDelete, onBulkDelete, isLo
                                                 <AlertTriangle className="h-3 w-3 text-red-500" />
                                             )}
                                         </div>
-                                        <span className="text-lg font-bold text-primary">
+                                        <span className="text-base font-bold text-primary">
                                             ${producto.precio.toLocaleString()}
                                         </span>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Actions Footer */}
-                            <div className="grid grid-cols-2 gap-3 pt-3 mt-1 border-t border-slate-100 dark:border-slate-800">
-                                <Button variant="outline" size="sm" onClick={() => onEdit(producto)} className="w-full">
-                                    <Edit className="h-3.5 w-3.5 mr-2" />
+                            {/* Actions Footer - More compact */}
+                            <div className="grid grid-cols-2 gap-2 pt-2 mt-1 border-t border-slate-100 dark:border-slate-800">
+                                <Button variant="outline" size="sm" onClick={() => onEdit(producto)} className="w-full h-8 text-xs">
+                                    <Edit className="h-3 w-3 mr-1.5" />
                                     Editar
                                 </Button>
                                 <Button variant="outline" size="sm" onClick={() => {
                                     if (confirm("¿Eliminar este producto?")) onDelete(producto.id);
-                                }} className="w-full text-destructive hover:text-destructive">
-                                    <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                }} className="w-full h-8 text-xs text-destructive hover:text-destructive">
+                                    <Trash2 className="h-3 w-3 mr-1.5" />
                                     Eliminar
                                 </Button>
                             </div>

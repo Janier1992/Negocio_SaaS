@@ -39,13 +39,13 @@ export function useUserProfile() {
       return {
         id: user.id,
         email: user.email,
-        first_name: profileResponse.data?.first_name,
-        last_name: profileResponse.data?.last_name,
-        avatar_url: profileResponse.data?.avatar_url,
-        business_id: memberData?.business_id,
-        role: memberData?.role,
+        first_name: profileResponse.data?.first_name || "",
+        last_name: profileResponse.data?.last_name || "",
+        avatar_url: profileResponse.data?.avatar_url || "",
+        business_id: memberData?.business_id || "",
+        role: memberData?.role || "staff",
         // Compatibility layer
-        empresa_id: memberData?.business_id
+        empresa_id: memberData?.business_id || ""
       };
     },
   });

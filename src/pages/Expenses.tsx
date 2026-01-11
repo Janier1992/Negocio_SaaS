@@ -116,7 +116,7 @@ export default function Expenses() {
             </div>
 
             {/* Mobile View */}
-            <div className="md:hidden space-y-4">
+            <div className="md:hidden space-y-3">
                 {isLoading ? (
                     <div className="text-center p-8">
                         <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
@@ -127,32 +127,32 @@ export default function Expenses() {
                     </div>
                 ) : (
                     expenses?.map((expense) => (
-                        <div key={expense.id} className="bg-white dark:bg-card p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-3">
+                        <div key={expense.id} className="bg-white dark:bg-card p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-2">
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <span className="text-xs text-muted-foreground block mb-1">
+                                    <span className="text-[10px] text-muted-foreground block mb-0.5">
                                         {format(new Date(expense.date), "dd MMM yyyy", { locale: es })}
                                     </span>
-                                    <h4 className="font-bold text-slate-900 dark:text-white text-base">
+                                    <h4 className="font-bold text-slate-900 dark:text-white text-sm leading-tight">
                                         {expense.description}
                                     </h4>
                                 </div>
-                                <span className="font-bold text-red-600 dark:text-red-400 text-lg">
+                                <span className="font-bold text-red-600 dark:text-red-400 text-base">
                                     -{formatCurrency(Number(expense.amount))}
                                 </span>
                             </div>
 
                             <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-                                <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                                     {expense.category}
                                 </span>
                                 <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => handleDelete(expense.id)}
-                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/10 h-8 px-2"
+                                    className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/10 h-7 px-2 text-xs"
                                 >
-                                    <Trash2 className="size-4 mr-1.5" />
+                                    <Trash2 className="size-3.5 mr-1" />
                                     Eliminar
                                 </Button>
                             </div>
