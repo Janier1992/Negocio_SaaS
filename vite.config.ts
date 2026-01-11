@@ -34,9 +34,9 @@ export default defineConfig(({ mode }) => {
   };
 
   return {
-    // Para despliegue en GitHub Pages (repositorio ERP_Negocios)
-    // En producción, asegura rutas correctas: janier1992.github.io/ERP_Negocios/
-    base: isDev ? "/" : "/ERP_Negocios/",
+    // Para despliegue en GitHub Pages (repositorio Negocio_SaaS)
+    // En producción, asegura rutas correctas: janier1992.github.io/Negocio_SaaS/
+    base: isDev ? "/" : "/Negocio_SaaS/",
 
     server: {
       host: "::",
@@ -67,8 +67,8 @@ export default defineConfig(({ mode }) => {
           theme_color: '#ffffff',
           background_color: '#ffffff',
           display: 'standalone',
-          start_url: '/',
-          scope: '/',
+          start_url: '/Negocio_SaaS/',
+          scope: '/Negocio_SaaS/',
           icons: [
             {
               src: 'pwa-192x192.png',
