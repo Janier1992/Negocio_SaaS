@@ -38,6 +38,9 @@ jobs:
           # Ajustar según tu repositorio si es necesario, o dejar root
           # VITE_PUBLIC_SITE_URL: "https://janier1992.github.io/Negocio_SaaS/" 
 
+      - name: Create 404.html
+        run: cp dist/index.html dist/404.html 
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
