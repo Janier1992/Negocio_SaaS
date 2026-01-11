@@ -28,7 +28,7 @@ export const AppLayout = () => {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-background-light dark:bg-background-dark text-text-main dark:text-gray-100 font-sans transition-colors duration-200 supports-[min-height:100dvh]:min-h-[100dvh]">
+      <div className="flex h-screen w-full bg-background-light dark:bg-background-dark text-text-main dark:text-gray-100 font-sans transition-colors duration-200 supports-[height:100dvh]:h-[100dvh] overflow-hidden">
         <AppSidebar />
         <div className="flex-1 flex flex-col h-full overflow-hidden relative">
           {/* TOP NAVBAR */}

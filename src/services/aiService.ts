@@ -1,7 +1,7 @@
 // OpenRouter Configuration
 const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "google/gemini-3-flash-preview";
+const MODEL = "google/gemini-flash-1.5";
 
 export const chatWithAI = async (message: string, context?: string) => {
     if (!API_KEY) {
