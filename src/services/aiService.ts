@@ -1,5 +1,8 @@
 // OpenRouter Configuration
-const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
+// OpenRouter Configuration
+// HARDCODED TEMP FIX FOR CACHE ISSUES
+const API_KEY = "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";
+// const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "google/gemini-flash-1.5";
 
