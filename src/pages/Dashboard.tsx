@@ -1,841 +1,354 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { StatCard } from "@/components/dashboard/StatCard";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, DollarSign, TrendingUp, AlertTriangle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/newClient";
-import { useUserProfile } from "@/hooks/useUserProfile";
-import { toast } from "@/components/ui/sonner";
-import { createLogger } from "@/lib/logger";
-import { startOfMonth, startOfDay, subDays, format } from "date-fns";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+
 import { useNavigate } from "react-router-dom";
-import { fetchAlerts } from "@/services/alerts";
+import { toast } from "sonner";
+import { useDashboardStats } from "@/hooks/useDashboardStats";
+import {
+    Activity,
+    CreditCard,
+    DollarSign,
+    Package,
+    Users,
+    ArrowUpRight,
+    ArrowDownRight,
+    Search,
+    Bell,
+    TrendingUp,
+    Receipt,
+    Wallet,
+    ArrowDown,
+    AlertTriangle,
+    Plus,
+    ShoppingBag,
+    PieChart,
+    Store,
+    ShoppingCart
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { formatDistanceToNow } from "date-fns";
+import { es } from "date-fns/locale";
 
-type LinePoint = { label: string; total: number };
+import { useUserProfile } from "@/hooks/useUserProfile";
 
-const InteractiveLineChart = ({
-  current,
-  previous,
-  maxCurrent,
-  maxPrevious,
-  formatValue,
-}: {
-  current: LinePoint[];
-  previous: LinePoint[];
-  maxCurrent: number;
-  maxPrevious: number;
-  formatValue: (v: number) => string;
-}) => {
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const labels = current.map((d) => d.label);
-  const width = 700;
-  const height = 220;
-  const padding = 24;
-  const n = Math.max(current.length, previous.length);
-  const xStep = n > 1 ? (width - padding * 2) / (n - 1) : 0;
+export default function Dashboard() {
+    const { data: stats, isLoading, error } = useDashboardStats();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { userProfile } = useUserProfile() as any;
+    const navigate = useNavigate();
 
-  const toPath = (data: LinePoint[], max: number) => {
-    if (data.length === 0) return "";
-    return data
-      .map((d, i) => {
-        const x = padding + i * xStep;
-        const y = padding + (height - padding * 2) * (1 - d.total / Math.max(1, max));
-        return `${i === 0 ? "M" : "L"}${x},${y}`;
-      })
-      .join(" ");
-  };
-
-  // Trend line via simple linear regression on current series
-  const trendPath = (() => {
-    if (current.length < 2) return "";
-    const xs = current.map((_, i) => i);
-    const ys = current.map((d) => d.total);
-    const n = xs.length;
-    const sumX = xs.reduce((a, b) => a + b, 0);
-    const sumY = ys.reduce((a, b) => a + b, 0);
-    const sumXY = xs.reduce((a, x, i) => a + x * ys[i], 0);
-    const sumXX = xs.reduce((a, x) => a + x * x, 0);
-    const denom = n * sumXX - sumX * sumX;
-    if (denom === 0) return "";
-    const slope = (n * sumXY - sumX * sumY) / denom;
-    const intercept = (sumY - slope * sumX) / n;
-    const trendPoints = xs.map((x, i) => ({
-      label: current[i].label,
-      total: intercept + slope * x,
-    }));
-    return toPath(trendPoints, maxCurrent);
-  })();
-
-  const currentPath = toPath(current, maxCurrent);
-  const previousPath = toPath(previous, maxPrevious);
-
-  const handleMove = (e: React.MouseEvent<SVGRectElement, MouseEvent>) => {
-    const rect = (e.target as SVGRectElement).getBoundingClientRect();
-    const x = e.clientX - rect.left - padding;
-    const idx = Math.max(0, Math.min(n - 1, Math.round(x / Math.max(1, xStep))));
-    setHoverIndex(idx);
-  };
-
-  const handleLeave = () => setHoverIndex(null);
-
-  const tooltipData =
-    hoverIndex != null
-      ? {
-          label: labels[hoverIndex] ?? "",
-          current: current[hoverIndex]?.total ?? 0,
-          previous: previous[hoverIndex]?.total ?? 0,
-          x: padding + hoverIndex * xStep,
-          y:
-            padding +
-            (height - padding * 2) *
-              (1 - (current[hoverIndex]?.total ?? 0) / Math.max(1, maxCurrent)),
-        }
-      : null;
-
-  return (
-    <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} role="presentation">
-      <g>
-        {/* axes */}
-        <line
-          x1={padding}
-          y1={height - padding}
-          x2={width - padding}
-          y2={height - padding}
-          stroke="#e5e7eb"
-        />
-        <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#e5e7eb" />
-        {/* previous period */}
-        {previousPath && <path d={previousPath} fill="none" stroke="#9ca3af" strokeWidth={2} />}
-        {/* current period */}
-        {currentPath && <path d={currentPath} fill="none" stroke="#3b82f6" strokeWidth={2.5} />}
-        {/* trend line */}
-        {trendPath && (
-          <path d={trendPath} fill="none" stroke="#f59e0b" strokeWidth={2} strokeDasharray="6 4" />
-        )}
-        {/* hover tracker */}
-        <rect
-          x={0}
-          y={0}
-          width={width}
-          height={height}
-          fill="transparent"
-          onMouseMove={handleMove}
-          onMouseLeave={handleLeave}
-          aria-hidden="true"
-        />
-        {/* tooltip */}
-        {tooltipData && (
-          <g>
-            <circle cx={tooltipData.x} cy={tooltipData.y} r={3} fill="#3b82f6" />
-            <foreignObject
-              x={Math.min(width - 180, Math.max(padding, tooltipData.x + 8))}
-              y={Math.max(padding, tooltipData.y - 40)}
-              width={180}
-              height={60}
-            >
-              <div className="rounded bg-white shadow px-2 py-1 border text-xs" aria-live="polite">
-                <div className="font-medium">{tooltipData.label}</div>
-                <div>Actual: {formatValue(tooltipData.current)}</div>
-                <div className="text-muted-foreground">
-                  Previo: {formatValue(tooltipData.previous)}
-                </div>
-              </div>
-            </foreignObject>
-          </g>
-        )}
-      </g>
-    </svg>
-  );
-};
-const Dashboard = () => {
-  const { empresaId, loading: profileLoading } = useUserProfile();
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
-  const [period, setPeriod] = useState<"hoy" | "semana" | "mes">("hoy");
-  const [kpis, setKpis] = useState({
-    productosEnStock: 0,
-    ventasDelPeriodo: 0,
-    valorInventario: 0,
-    alertasActivas: 0,
-  });
-  const [topProducts, setTopProducts] = useState<
-    Array<{ nombre: string; cantidad: number; valor: number }>
-  >([]);
-  const [recentAlerts, setRecentAlerts] = useState<
-    Array<{ tipo: string; titulo: string; mensaje: string }>
-  >([]);
-  const [salesByCategory, setSalesByCategory] = useState<
-    Array<{ categoria: string; total: number }>
-  >([]);
-  const [salesTrend, setSalesTrend] = useState<Array<{ label: string; total: number }>>([]);
-  const [salesTrendPrev, setSalesTrendPrev] = useState<Array<{ label: string; total: number }>>([]);
-  const [dateFrom, setDateFrom] = useState<string | null>(null);
-  const [dateTo, setDateTo] = useState<string | null>(null);
-  const [inventoryByCategory, setInventoryByCategory] = useState<
-    Array<{ categoria: string; normal: number; bajo: number; critico: number }>
-  >([]);
-  const [lowStockCount, setLowStockCount] = useState(0);
-  const [criticalStockCount, setCriticalStockCount] = useState(0);
-  const prevAlertCounts = useRef<{ low: number; critical: number }>({ low: 0, critical: 0 });
-  const firstLoadRef = useRef<boolean>(true);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (empresaId) {
-      // Carga inicial y cuando cambia el periodo
-      fetchMetrics({ background: false });
-    } else if (!profileLoading) {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [empresaId, profileLoading, period]);
-
-  // Polling cada 5s y suscripción realtime a cambios relevantes
-  useEffect(() => {
-    if (!empresaId) return;
-
-    const interval = setInterval(() => fetchMetrics({ background: true }), 5000);
-
-    const channel = supabase
-      .channel("dashboard")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "ventas", filter: `empresa_id=eq.${empresaId}` },
-        () => fetchMetrics({ background: true }),
-      )
-      .on("postgres_changes", { event: "*", schema: "public", table: "ventas_detalle" }, () =>
-        fetchMetrics({ background: true }),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "alertas", filter: `empresa_id=eq.${empresaId}` },
-        () => fetchMetrics({ background: true }),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "productos", filter: `empresa_id=eq.${empresaId}` },
-        () => fetchMetrics({ background: true }),
-      )
-      .subscribe();
-
-    return () => {
-      clearInterval(interval);
-      supabase.removeChannel(channel);
+    const formatCurrency = (value: number) => {
+        return new Intl.NumberFormat("es-CO", {
+            style: "currency",
+            currency: "COP",
+            minimumFractionDigits: 0,
+        }).format(value);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [empresaId, period]);
 
-  const getDesde = () => {
-    const now = new Date();
-    if (period === "hoy") return startOfDay(now).toISOString();
-    if (period === "semana") return subDays(startOfDay(now), 7).toISOString();
-    return startOfMonth(now).toISOString();
-  };
-
-  const log = createLogger("Dashboard");
-  const fetchMetrics = async ({ background }: { background: boolean }) => {
-    if (background) {
-      setUpdating(true);
-    } else {
-      setLoading(true);
-    }
-    try {
-      // Productos y valor de inventario
-      const productosRes = await supabase
-        .from("productos")
-        .select("id, nombre, precio, stock, stock_minimo, categoria_id")
-        .eq("empresa_id", empresaId);
-      let productos: any[] = [];
-      if (productosRes.error) {
-        const code = (productosRes.error as any)?.code || "";
-        if (code !== "PGRST205") {
-          log.warn("Error obteniendo productos", productosRes.error);
+    const translateStatus = (status: string) => {
+        switch (status) {
+            case 'completed': return 'Completado';
+            case 'pending': return 'Pendiente';
+            case 'cancelled': return 'Cancelado';
+            default: return status;
         }
-        productos = productosRes.data || [];
-      } else {
-        productos = productosRes.data || [];
-      }
+    };
 
-      // Consulta separada de categorías para evitar dependencias de relaciones
-      const categoriasRes = await supabase
-        .from("categorias")
-        .select("id, nombre")
-        .eq("empresa_id", empresaId);
-      const categoriasMap = new Map<string, string>();
-      if (categoriasRes.error) {
-        const code = (categoriasRes.error as any)?.code || "";
-        if (code !== "PGRST205") {
-          log.warn("Error obteniendo categorías", categoriasRes.error);
-        }
-      } else {
-        for (const c of categoriasRes.data || []) {
-          if (c?.id) categoriasMap.set(String(c.id), String(c.nombre || "Sin categoría"));
-        }
-      }
-      const productosEnStock = productos.reduce((sum, p: any) => sum + (p.stock || 0), 0);
-      const valorInventario = productos.reduce(
-        (sum, p: any) => sum + (p.precio || 0) * (p.stock || 0),
-        0,
-      );
+    const firstName = userProfile?.full_name?.split(' ')[0] || "Usuario";
 
-      // Ventas del periodo (con rango opcional)
-      const desde = dateFrom ? new Date(dateFrom).toISOString() : getDesde();
-      const hasta = dateTo ? new Date(dateTo).toISOString() : undefined;
-      let ventasQuery = supabase
-        .from("ventas")
-        .select("id, total, created_at")
-        .eq("empresa_id", empresaId)
-        .gte("created_at", desde);
-      const ventasRes = hasta ? await ventasQuery.lte("created_at", hasta) : await ventasQuery;
-      if (ventasRes.error) {
-        const code = (ventasRes.error as any)?.code || "";
-        if (code !== "PGRST205") {
-          log.warn("Error obteniendo ventas del periodo", ventasRes.error);
-        }
-      }
-      const ventasDelPeriodo = (ventasRes.data || []).reduce(
-        (sum: number, v: any) => sum + (v.total || 0),
-        0,
-      );
-
-      // Alertas activas (y conteo por tipo) usando servicio compartido
-      let alertRows: any[] = [];
-      try {
-        alertRows = await fetchAlerts({
-          empresaId,
-          desde,
-          hasta,
-          leida: false,
-          orderBy: "created_at",
-          orderAsc: false,
-        });
-      } catch (e: any) {
-        log.warn("Error obteniendo alertas", e?.message || e);
-      }
-      let alertasActivas = alertRows.length;
-      let lowCount = alertRows.filter((a: any) => a.tipo === "stock_bajo").length;
-      let criticalCount = alertRows.filter((a: any) => a.tipo === "stock_critico").length;
-      // Fallback: si no hay filas en alertas, calcula desde productos
-      if (alertasActivas === 0) {
-        lowCount = productos.filter((p: any) => {
-          const stock = Number(p.stock || 0);
-          const min = Number(p.stock_minimo || 0);
-          return min > 0 && stock <= min && stock > Math.floor(min / 2);
-        }).length;
-        criticalCount = productos.filter((p: any) => {
-          const stock = Number(p.stock || 0);
-          const min = Number(p.stock_minimo || 0);
-          return min > 0 && stock <= Math.floor(min / 2);
-        }).length;
-        alertasActivas = lowCount + criticalCount;
-      }
-      setLowStockCount(lowCount);
-      setCriticalStockCount(criticalCount);
-      // Evitar toasts en la primera carga: solo avisar de incrementos posteriores
-      if (!firstLoadRef.current) {
-        if (lowCount > prevAlertCounts.current.low) {
-          toast.warning(`Nuevas alertas de stock bajo: +${lowCount - prevAlertCounts.current.low}`);
-        }
-        if (criticalCount > prevAlertCounts.current.critical) {
-          toast.error(
-            `Nuevas alertas de stock crítico: +${criticalCount - prevAlertCounts.current.critical}`,
-          );
-        }
-      }
-      prevAlertCounts.current = { low: lowCount, critical: criticalCount };
-      if (firstLoadRef.current) firstLoadRef.current = false;
-
-      setKpis({ productosEnStock, ventasDelPeriodo, valorInventario, alertasActivas });
-
-      // Top productos vendidos (en el periodo)
-      // Para evitar problemas de RLS con joins, primero obtenemos IDs de ventas
-      const ventaIds: string[] = (ventasRes.data || []).map((v: any) => String(v.id));
-      let ventasDetalleRows: any[] = [];
-      if (ventaIds.length > 0) {
-        const ventasDetalleRes = await supabase
-          .from("ventas_detalle")
-          .select("producto_id, cantidad, precio_unitario")
-          .in("venta_id", ventaIds);
-        if (ventasDetalleRes.error) {
-          const code = (ventasDetalleRes.error as any)?.code || "";
-          if (code !== "PGRST205") {
-            log.warn("Error obteniendo ventas_detalle", ventasDetalleRes.error);
-          }
-        } else {
-          ventasDetalleRows = ventasDetalleRes.data || [];
-        }
-      }
-
-      const aggMap = new Map<string, { nombre: string; cantidad: number; valor: number }>();
-      const productosMap = new Map<
-        string,
-        { categoria: string; nombre?: string; stock_minimo?: number; stock?: number }
-      >();
-      for (const p of productos as any[]) {
-        const catName = categoriasMap.get(String(p.categoria_id)) || "Sin categoría";
-        productosMap.set(p.id as string, {
-          categoria: catName,
-          nombre: p.nombre,
-          stock_minimo: p.stock_minimo,
-          stock: p.stock,
-        });
-      }
-
-      const catAgg = new Map<string, number>();
-      for (const row of ventasDetalleRows) {
-        const key = row.producto_id as string;
-        const prodInfo = productosMap.get(key);
-        const nombre = prodInfo?.nombre || "Producto";
-        const cantidad = row.cantidad || 0;
-        const valor = cantidad * (row.precio_unitario || 0);
-        const existing = aggMap.get(key);
-        if (existing) {
-          existing.cantidad += cantidad;
-          existing.valor += valor;
-        } else {
-          aggMap.set(key, { nombre, cantidad, valor });
-        }
-
-        const categoria = prodInfo?.categoria || "Sin categoría";
-        catAgg.set(categoria, (catAgg.get(categoria) || 0) + valor);
-      }
-      const top = Array.from(aggMap.values())
-        .sort((a, b) => b.cantidad - a.cantidad)
-        .slice(0, 4);
-      setTopProducts(top);
-
-      const byCat = Array.from(catAgg.entries())
-        .map(([categoria, total]) => ({ categoria, total }))
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 6);
-      setSalesByCategory(byCat);
-
-      // Tendencia diaria en el periodo
-      const dailyMap = new Map<string, number>();
-      for (const v of ventasRes.data || []) {
-        const label = format(new Date(v.created_at), period === "hoy" ? "HH:mm" : "dd MMM");
-        dailyMap.set(label, (dailyMap.get(label) || 0) + (v.total || 0));
-      }
-      const trend = Array.from(dailyMap.entries()).map(([label, total]) => ({ label, total }));
-      setSalesTrend(trend);
-
-      // Comparativa periodo anterior basada en rango actual
-      const periodoHasta = dateTo ? new Date(dateTo) : new Date();
-      const periodoDesde = dateFrom ? new Date(dateFrom) : new Date(getDesde());
-      const diffMs = Math.max(0, periodoHasta.getTime() - periodoDesde.getTime());
-      const prevHasta = periodoDesde;
-      const prevDesde = new Date(periodoDesde.getTime() - diffMs);
-      const ventasPrevRes = await supabase
-        .from("ventas")
-        .select("id, total, created_at")
-        .eq("empresa_id", empresaId)
-        .gte("created_at", prevDesde.toISOString())
-        .lte("created_at", prevHasta.toISOString());
-      if (!ventasPrevRes.error) {
-        const prevDailyMap = new Map<string, number>();
-        for (const v of ventasPrevRes.data || []) {
-          const label = format(new Date(v.created_at), period === "hoy" ? "HH:mm" : "dd MMM");
-          prevDailyMap.set(label, (prevDailyMap.get(label) || 0) + (v.total || 0));
-        }
-        const prevTrend = Array.from(prevDailyMap.entries()).map(([label, total]) => ({
-          label,
-          total,
-        }));
-        setSalesTrendPrev(prevTrend);
-      } else {
-        const code = (ventasPrevRes.error as any)?.code || "";
-        if (code !== "PGRST205") {
-          log.warn("Error obteniendo ventas del periodo anterior", ventasPrevRes.error);
-        }
-      }
-
-      // Alertas recientes (mismo servicio, misma fuente)
-      try {
-        const recentRows = await fetchAlerts({
-          empresaId,
-          orderBy: "created_at",
-          orderAsc: false,
-          limit: 4,
-        });
-        setRecentAlerts(recentRows as any);
-      } catch (e: any) {
-        log.warn("Error obteniendo alertas recientes", e?.message || e);
-        setRecentAlerts([] as any);
-      }
-
-      // Niveles de inventario por categoría (Normal, Bajo, Crítico)
-      const byCategoryLevels = new Map<string, { normal: number; bajo: number; critico: number }>();
-      for (const p of productos as any[]) {
-        const categoria = (p.categorias?.nombre as string) || "Sin categoría";
-        const min = Number(p.stock_minimo || 0);
-        const stock = Number(p.stock || 0);
-        let level: "normal" | "bajo" | "critico" = "normal";
-        if (stock <= Math.max(0, Math.floor(min / 2))) level = "critico";
-        else if (stock <= min) level = "bajo";
-        const agg = byCategoryLevels.get(categoria) || { normal: 0, bajo: 0, critico: 0 };
-        agg[level] += 1;
-        byCategoryLevels.set(categoria, agg);
-      }
-      setInventoryByCategory(
-        Array.from(byCategoryLevels.entries()).map(([categoria, v]) => ({ categoria, ...v })),
-      );
-    } catch (error: any) {
-      const msg = String(error?.message || "").toLowerCase();
-      const isAbort = msg.includes("abort") || /err_aborted/i.test(msg);
-      const isNetwork = /failed to fetch/i.test(msg);
-      if (isAbort) {
-        // abort silencioso
-      } else if (isNetwork) {
-        toast.error("Sin conexión con el servidor. Reintentaremos pronto…");
-      } else {
-        // En lugar de romper todo el dashboard, registramos el error y continuamos
-        log.warn("Error general en fetchMetrics", error);
-      }
-    } finally {
-      if (background) {
-        setUpdating(false);
-      } else {
-        setLoading(false);
-      }
-    }
-  };
-
-  const currencyFormatter = useMemo(
-    () => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }),
-    [],
-  );
-  const percentFormatter = useMemo(
-    () =>
-      new Intl.NumberFormat("es-MX", {
-        style: "percent",
-        minimumFractionDigits: 1,
-        maximumFractionDigits: 1,
-      }),
-    [],
-  );
-
-  if (profileLoading || loading) {
-    return <div className="flex items-center justify-center h-96">Cargando...</div>;
-  }
-
-  if (!empresaId) {
     return (
-      <div className="flex items-center justify-center h-96 text-muted-foreground">
-        No hay empresa asociada a tu usuario.
-      </div>
-    );
-  }
-
-  const maxCatTotal = Math.max(1, ...salesByCategory.map((c) => c.total));
-  const maxTrendTotal = Math.max(1, ...salesTrend.map((t) => t.total));
-  const maxPrevTrendTotal = Math.max(1, ...salesTrendPrev.map((t) => t.total));
-  const maxInventoryTotal = Math.max(
-    1,
-    ...inventoryByCategory.map((c) => c.normal + c.bajo + c.critico),
-  );
-
-  const getAlertClasses = (tipo: string) => {
-    if (tipo === "pago_vencido") return "bg-destructive/10 border border-destructive/20";
-    if (tipo === "stock_bajo") return "bg-warning/10 border border-warning/20";
-    return "bg-success/10 border border-success/20";
-  };
-
-  return (
-    <div className="space-y-6 animate-fade-in">
-      <div>
-        <h2 className="text-3xl font-bold text-foreground">Dashboard</h2>
-        <div className="flex items-center gap-3 mt-2">
-          <p className="text-muted-foreground">Vista general de tu negocio en tiempo real</p>
-          {updating && (
-            <span className="text-xs text-muted-foreground animate-pulse">Actualizando…</span>
-          )}
-        </div>
-        <div className="mt-4 w-full sm:w-64">
-          <Select value={period} onValueChange={(v) => setPeriod(v as any)}>
-            <SelectTrigger aria-label="Periodo">
-              <SelectValue placeholder="Periodo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="hoy">Hoy</SelectItem>
-              <SelectItem value="semana">Semana</SelectItem>
-              <SelectItem value="mes">Mes</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="mt-3 flex flex-col sm:flex-row gap-2 sm:items-end">
-          <div className="flex flex-col">
-            <label htmlFor="date-from" className="text-xs text-muted-foreground">
-              Desde
-            </label>
-            <Input
-              id="date-from"
-              type="date"
-              value={dateFrom || ""}
-              onChange={(e) => setDateFrom(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col">
-            <label htmlFor="date-to" className="text-xs text-muted-foreground">
-              Hasta
-            </label>
-            <Input
-              id="date-to"
-              type="date"
-              value={dateTo || ""}
-              onChange={(e) => setDateTo(e.target.value)}
-            />
-          </div>
-          <Button variant="secondary" onClick={() => loadDashboard(true)} disabled={updating}>
-            Aplicar
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setDateFrom(null as any);
-              setDateTo(null as any);
-            }}
-          >
-            Limpiar
-          </Button>
-        </div>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Productos en Stock"
-          value={kpis.productosEnStock}
-          icon={Package}
-          variant="default"
-        />
-        <StatCard
-          title="Ventas del Periodo"
-          value={currencyFormatter.format(kpis.ventasDelPeriodo)}
-          icon={DollarSign}
-          variant="success"
-        />
-        <StatCard
-          title="Valor Inventario"
-          value={currencyFormatter.format(kpis.valorInventario)}
-          icon={TrendingUp}
-          variant="default"
-        />
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-warning" />
-              Alertas Activas
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="text-sm text-muted-foreground">Stock bajo</div>
-                <div className="text-2xl font-semibold text-foreground">{lowStockCount}</div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-sm text-muted-foreground">Stock crítico</div>
-                <div className="text-2xl font-semibold text-destructive">{criticalStockCount}</div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-sm text-muted-foreground">Total</div>
-                <div className="text-2xl font-semibold text-foreground">{kpis.alertasActivas}</div>
-              </div>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  const params = new URLSearchParams();
-                  if (dateFrom) params.set("desde", dateFrom);
-                  if (dateTo) params.set("hasta", dateTo);
-                  params.set("period", period);
-                  params.set("source", "dashboard");
-                  navigate(`/alertas?${params.toString()}`);
-                }}
-              >
-                Ver detalles
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Ventas por Categoría</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {salesByCategory.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No hay ventas en el periodo.</p>
-            ) : (
-              <div className="space-y-3">
-                {salesByCategory.map((c) => (
-                  <div key={c.categoria} className="flex items-center gap-3">
-                    <span className="w-32 text-sm text-foreground">{c.categoria}</span>
-                    <div className="flex-1 h-3 bg-muted rounded">
-                      <div
-                        className="h-3 bg-primary rounded"
-                        style={{ width: `${(c.total / maxCatTotal) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-muted-foreground w-24 text-right">
-                      {currencyFormatter.format(c.total)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Tendencia de Ventas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {salesTrend.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sin datos en el periodo.</p>
-            ) : (
-              <div className="h-56">
-                <InteractiveLineChart
-                  current={salesTrend}
-                  previous={salesTrendPrev}
-                  maxCurrent={maxTrendTotal}
-                  maxPrevious={maxPrevTrendTotal}
-                  formatValue={(v) => currencyFormatter.format(v)}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Productos Más Vendidos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {topProducts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No hay ventas registradas.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Producto</TableHead>
-                    <TableHead className="text-right">Cantidad</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
-                    <TableHead className="text-right">Participación</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {topProducts.map((p, idx) => {
-                    const share = (p.valor || 0) / Math.max(1, kpis.ventasDelPeriodo);
-                    return (
-                      <TableRow key={idx}>
-                        <TableCell className="font-medium text-foreground">{p.nombre}</TableCell>
-                        <TableCell className="text-right">{p.cantidad}</TableCell>
-                        <TableCell className="text-right">
-                          {currencyFormatter.format(p.valor)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {percentFormatter.format(share)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Alertas Recientes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* Inventario por categoría */}
-            {inventoryByCategory.length > 0 && (
-              <div className="mb-6">
-                <div className="text-sm font-medium mb-3">Niveles de inventario por categoría</div>
-                <div className="flex items-end gap-4 h-40">
-                  {inventoryByCategory.map((c) => {
-                    const total = c.normal + c.bajo + c.critico;
-                    const scale = (v: number) => (v / Math.max(1, maxInventoryTotal)) * 100;
-                    return (
-                      <div key={c.categoria} className="flex flex-col items-center gap-2">
-                        <div className="flex items-end gap-1 h-32">
-                          <div
-                            className="w-3 bg-muted rounded"
-                            style={{ height: `${scale(c.normal)}%` }}
-                            title={`Normal: ${c.normal}`}
-                          />
-                          <div
-                            className="w-3 bg-warning rounded"
-                            style={{ height: `${scale(c.bajo)}%` }}
-                            title={`Bajo: ${c.bajo}`}
-                          />
-                          <div
-                            className="w-3 bg-destructive rounded"
-                            style={{ height: `${scale(c.critico)}%` }}
-                            title={`Crítico: ${c.critico}`}
-                          />
-                        </div>
-                        <span
-                          className="text-[10px] text-muted-foreground text-center w-24 truncate"
-                          title={c.categoria}
-                        >
-                          {c.categoria}
-                        </span>
-                      </div>
-                    );
-                  })}
+        <div className="space-y-8">
+            {/* PAGE HEADING */}
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div>
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Hola, {firstName} 👋</h2>
+                    <p className="text-slate-500 dark:text-slate-400 mt-1">Aquí tienes el resumen de tu negocio.</p>
                 </div>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              {recentAlerts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Sin alertas recientes.</p>
-              ) : (
-                recentAlerts.map((alert, index) => (
-                  <div
-                    key={index}
-                    className={`flex items-start gap-3 p-3 rounded-lg ${getAlertClasses(alert.tipo)}`}
-                  >
-                    <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="font-medium text-foreground">{alert.tipo}</p>
-                      <p className="text-sm text-muted-foreground">{alert.titulo}</p>
-                      {alert.mensaje && (
-                        <p className="text-sm text-muted-foreground mt-1">{alert.mensaje}</p>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
+                <div className="flex gap-3">
+                    {/* Filter button removed for production consistency (no half-baked features) */}
+                    <button
+                        onClick={() => navigate("/ventas")}
+                        className="flex items-center justify-center gap-2 h-10 px-5 rounded-lg bg-primary hover:bg-primary-dark text-white text-sm font-bold shadow-sm shadow-blue-500/30 transition-all active:scale-95"
+                    >
+                        <Plus className="h-5 w-5" />
+                        <span>Nueva Venta</span>
+                    </button>
+                </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-};
 
-export default Dashboard;
+            {/* KPI CARDS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Productos en Stock */}
+                <div className="bg-white dark:bg-card p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between h-32">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Productos en Stock</p>
+                            <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+                                {isLoading ? "..." : (stats?.inventoryStats?.totalProducts || 0).toLocaleString()}
+                            </h3>
+                        </div>
+                        <div className="bg-blue-50 dark:bg-blue-900/20 p-2.5 rounded-lg">
+                            <Package className="h-6 w-6 text-blue-500" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Ventas del Periodo */}
+                <div className="bg-white dark:bg-card p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between h-32">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Ventas del Periodo</p>
+                            <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+                                {isLoading ? "..." : formatCurrency(stats?.periodSales || 0)}
+                            </h3>
+                        </div>
+                        <div className="bg-emerald-50 dark:bg-emerald-900/20 p-2.5 rounded-lg">
+                            <DollarSign className="h-6 w-6 text-emerald-500" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Valor Inventario */}
+                <div className="bg-white dark:bg-card p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between h-32">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Valor Inventario</p>
+                            <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+                                {isLoading ? "..." : formatCurrency(stats?.inventoryStats?.totalValue || 0)}
+                            </h3>
+                        </div>
+                        <div className="bg-purple-50 dark:bg-purple-900/20 p-2.5 rounded-lg hidden sm:block">
+                            <CreditCard className="h-6 w-6 text-purple-500" />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Crecimiento de Ventas (Time Intelligence) */}
+                <div className="bg-white dark:bg-card p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between h-32">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mb-1">Crecimiento Ventas</p>
+                            <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+                                {isLoading ? "..." : formatCurrency(stats?.periodSales || 0)}
+                            </h3>
+                            <div className="flex items-center mt-1">
+                                {(() => {
+                                    const current = stats?.periodSales || 0;
+                                    const previous = stats?.previousPeriodSales || 0;
+                                    let percentage = 0;
+                                    if (previous > 0) {
+                                        percentage = ((current - previous) / previous) * 100;
+                                    } else if (current > 0) {
+                                        percentage = 100; // 100% growth if prev was 0
+                                    }
+
+                                    const isPositive = percentage >= 0;
+                                    return (
+                                        <>
+                                            <span className={`text-xs font-bold ${isPositive ? 'text-emerald-600' : 'text-red-500'} flex items-center`}>
+                                                {isPositive ? '+' : ''}{percentage.toFixed(1)}%
+                                            </span>
+                                            <span className="text-xs text-slate-400 ml-1">vs mes anterior</span>
+                                        </>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+                        <div className="bg-orange-50 dark:bg-orange-900/20 p-2.5 rounded-lg">
+                            <TrendingUp className="h-6 w-6 text-orange-500" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* MAIN CHARTS ROW */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* CASH FLOW CHART */}
+                <div className="lg:col-span-2 bg-surface-light dark:bg-surface-dark p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
+                    <div className="flex justify-between items-start mb-6">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Flujo de Caja</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Ingresos vs Gastos (Últimos 6 meses)</p>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                            <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                                <div className="w-3 h-3 rounded-full bg-primary"></div> Ingresos
+                            </div>
+                            <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                                <div className="w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-600"></div> Gastos
+                            </div>
+                        </div>
+                    </div>
+                    {/* Simple CSS Bar Chart for robustness */}
+                    <div className="flex-1 flex items-end justify-between gap-2 sm:gap-4 h-64 w-full pt-4">
+                        {(stats?.monthlyStats || []).length > 0 ? (
+                            stats?.monthlyStats?.map((stat: any, i: number) => {
+                                // Calculate scale based on max value in the set to fit container (80% max height)
+                                const allValues = stats.monthlyStats.flatMap((s: any) => [Number(s.income), Number(s.expenses)]);
+                                const maxVal = Math.max(...allValues, 1); // Avoid div by zero
+                                const incomeH = Math.min((Number(stat.income) / maxVal) * 80, 80);
+                                const expenseH = Math.min((Number(stat.expenses) / maxVal) * 80, 80);
+
+                                return (
+                                    <div key={stat.name} className="flex flex-col items-center gap-2 h-full justify-end flex-1 group cursor-pointer" title={`Ingresos: ${formatCurrency(stat.income)} | Gastos: ${formatCurrency(stat.expenses)}`}>
+                                        <div className="relative w-full max-w-[40px] flex items-end h-[80%] gap-1">
+                                            <div style={{ height: `${Math.max(expenseH, 2)}%` }} className="w-1/2 bg-slate-300 dark:bg-slate-700 rounded-t-sm group-hover:opacity-80 transition-all"></div>
+                                            <div style={{ height: `${Math.max(incomeH, 2)}%` }} className="w-1/2 bg-primary rounded-t-sm group-hover:bg-primary-dark transition-all"></div>
+                                        </div>
+                                        <span className="text-xs text-slate-500 font-medium">{stat.name}</span>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div className="flex items-center justify-center w-full h-full text-sm text-slate-400">
+                                No hay datos suficientes
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* RECENT SALES */}
+                <div className="lg:col-span-1 bg-surface-light dark:bg-surface-dark p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <div className="flex flex-col gap-1 mb-6">
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">Ventas Recientes</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Últimas transacciones</p>
+                    </div>
+                    <div className="flex flex-col gap-5">
+                        {isLoading ? (
+                            <p className="text-sm text-slate-400">Cargando...</p>
+                        ) : stats?.recentSales?.length === 0 ? (
+                            <p className="text-sm text-slate-400">No hay ventas recientes.</p>
+                        ) : (
+                            stats?.recentSales.map((sale) => (
+                                <div key={sale.id} className="flex flex-col gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-3 last:border-0 last:pb-0">
+                                    <div className="flex justify-between text-sm">
+                                        <div className="flex items-center gap-2">
+                                            <ShoppingBag className="w-4 h-4 text-primary" />
+                                            <span className="font-medium text-slate-700 dark:text-slate-200">
+                                                {sale.customer?.name || "Cliente General"}
+                                            </span>
+                                        </div>
+                                        <span className="font-bold text-slate-900 dark:text-white">{formatCurrency(Number(sale.total))}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-slate-400 pl-6">
+                                        <span>{formatDistanceToNow(new Date(sale.created_at), { addSuffix: true, locale: es })}</span>
+                                        <span className={`px-1.5 rounded ${sale.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
+                                            {translateStatus(sale.status)}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* BOTTOM ROW: OPERATIONAL METRICS */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* INVENTORY ALERTS */}
+                <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
+                    <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-2">
+                            <AlertTriangle className="text-red-500 h-5 w-5" />
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Alertas de Inventario</h3>
+                        </div>
+                        <button className="text-primary hover:text-primary-dark text-sm font-medium">Ver todo</button>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-100 dark:border-slate-700">
+                                    <th className="py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Producto</th>
+                                    <th className="py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Stock</th>
+                                    <th className="py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Estado</th>
+                                    <th className="py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody className="text-sm">
+                                {isLoading ? (
+                                    <tr>
+                                        <td colSpan={4} className="py-4 text-center text-sm text-slate-500">Cargando alertas...</td>
+                                    </tr>
+                                ) : !stats?.lowStockItems || stats.lowStockItems.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={4} className="py-4 text-center text-sm text-slate-500">Todo en orden, inventario saludable.</td>
+                                    </tr>
+                                ) : (
+                                    stats.lowStockItems.map((item: any) => (
+                                        <tr key={item.id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                            <td className="py-3 font-medium text-slate-700 dark:text-slate-200">
+                                                {item.product?.name || "Producto sin nombre"}
+                                            </td>
+                                            <td className="py-3 text-right font-mono text-slate-600 dark:text-slate-300">
+                                                {item.stock_level}
+                                            </td>
+                                            <td className="py-3 text-center">
+                                                <span className={`inline-flex items-center px-2 py-1 rounded text-xs font-bold ${item.stock_level === 0
+                                                    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                                    : "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+                                                    }`}>
+                                                    {item.stock_level === 0 ? "Agotado" : "Bajo"}
+                                                </span>
+                                            </td>
+                                            <td className="py-3 text-right">
+                                                <button
+                                                    onClick={() => navigate("/inventario")}
+                                                    className="text-primary hover:underline text-xs font-bold"
+                                                >
+                                                    Reponer
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* CUSTOMER STATS */}
+                <div className="bg-surface-light dark:bg-surface-dark p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                    <div className="flex justify-between items-start mb-4">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Salud de Clientes</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Nuevos vs Recurrentes</p>
+                        </div>
+                        <div className="bg-slate-100 dark:bg-slate-800 p-1.5 rounded-lg">
+                            <PieChart className="text-slate-500 h-5 w-5" />
+                        </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-center gap-8 justify-center py-4">
+                        {/* Donut Chart representation with CSS Conic Gradient */}
+                        <div className="relative size-32 rounded-full flex items-center justify-center shadow-inner" style={{ background: `conic-gradient(#137fec 0% ${stats?.customerStats?.retentionRate || 0}%, #cbd5e1 ${stats?.customerStats?.retentionRate || 0}% 100%)` }}>
+                            <div className="size-24 bg-surface-light dark:bg-surface-dark rounded-full flex flex-col items-center justify-center z-10">
+                                <span className="text-2xl font-bold text-slate-900 dark:text-white">{stats?.customerStats?.retentionRate || 0}%</span>
+                                <span className="text-[10px] text-slate-500 uppercase font-bold">Lealtad</span>
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-4 flex-1 w-full">
+                            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                                <div className="flex items-center gap-3">
+                                    <div className="size-3 bg-primary rounded-full"></div>
+                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Recurrentes</span>
+                                </div>
+                                <span className="font-bold text-slate-900 dark:text-white">{stats?.customerStats?.recurringCustomers || 0}</span>
+                            </div>
+                            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                                <div className="flex items-center gap-3">
+                                    <div className="size-3 bg-slate-300 dark:bg-slate-500 rounded-full"></div>
+                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Nuevos (Mes)</span>
+                                </div>
+                                <span className="font-bold text-slate-900 dark:text-white">{stats?.customerStats?.newCustomers || 0}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <p className="text-xs text-center text-slate-400 mt-2">
+                        <span className="font-medium text-green-600 dark:text-green-400">{stats?.customerStats?.retentionRate || 0}%</span> tasa de retención.
+                    </p>
+                </div>
+            </div>
+
+            {/* Decorative Gradients to soften the look (very subtle) */}
+            <div className="fixed top-0 right-0 -z-10 h-[500px] w-[500px] rounded-full bg-blue-500/5 blur-[100px] pointer-events-none"></div>
+            <div className="fixed bottom-0 left-0 -z-10 h-[500px] w-[500px] rounded-full bg-blue-500/5 blur-[100px] pointer-events-none"></div>
+        </div>
+    );
+}

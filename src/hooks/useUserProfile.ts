@@ -1,103 +1,58 @@
-import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/newClient";
 
-export const useUserProfile = () => {
-  const [profile, setProfile] = useState<{
-    id: string;
-    empresa_id: string | null;
-    rol: string | null;
-    full_name: string | null;
-    email: string;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [empresaId, setEmpresaId] = useState<string | null>(null);
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
-  const fetchProfile = useCallback(async (): Promise<string | null> => {
-    try {
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
-      if (error) {
-        const msg = String(error?.message || "").toLowerCase();
-        const isInvalidRefresh =
-          msg.includes("invalid refresh token") || msg.includes("refresh token not found");
-        if (isInvalidRefresh) {
-          try {
-            await supabase.auth.signOut({ scope: "local" });
-          } catch {}
-        }
-      }
+export function useUserProfile() {
+  const { data: userProfile, isLoading } = useQuery({
+    queryKey: ["userProfile"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
 
-      if (!user) {
-        setProfile(null);
-        setEmpresaId(null);
-        return null;
-      }
-
-      const [profileRes, rpcRes] = await Promise.all([
+      // Fetch profile and business membership in parallel
+      const [profileResponse, memberResponse] = await Promise.all([
         supabase
           .from("profiles")
-          .select("id, empresa_id, rol, full_name, email")
+          .select("*")
           .eq("id", user.id)
           .maybeSingle(),
-        supabase.rpc("get_user_empresa_id", { _user_id: user.id }),
+        supabase
+          .from("business_members")
+          .select("business_id, role")
+          .eq("user_id", user.id)
+          .maybeSingle()
       ]);
-      if (profileRes.error) {
-        // Manejo amable para PGRST205 (schema cache desactualizado)
-        const low = String(profileRes.error.message || "").toLowerCase();
-        if (profileRes.error.code === "PGRST205" || low.includes("schema cache")) {
-          console.warn("[Profiles] Esquema no sincronizado. Mostrando onboarding.");
-        } else {
-          throw profileRes.error;
-        }
-      }
-      if (rpcRes.error) {
-        console.warn("RPC get_user_empresa_id error:", rpcRes.error.message);
+
+      if (profileResponse.error) {
+        console.warn("Error loading profile (safe to ignore if just business_id needed):", profileResponse.error);
       }
 
-      const empresaFromRpc = (rpcRes.data as string) || null;
-      const currentProfile = profileRes.data || null;
-
-      const currentEmpresaId = currentProfile?.empresa_id ?? empresaFromRpc;
-      setProfile(currentProfile);
-      setEmpresaId(currentEmpresaId);
-      return currentEmpresaId;
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-      setProfile(null);
-      setEmpresaId(null);
-      return null;
-    }
-  }, []);
-
-  const refetch = useCallback(async () => {
-    setLoading(true);
-    await fetchProfile();
-    setLoading(false);
-  }, [fetchProfile]);
-
-  // Espera activa a que empresaId esté disponible, reintentando el fetch
-  // Útil justo después de bootstrap donde puede haber latencia de propagación
-  const awaitEmpresaId = useCallback(
-    async (opts?: { retries?: number; delayMs?: number }) => {
-      const retries = Math.max(1, Math.min(20, opts?.retries ?? 10));
-      const delayMs = Math.max(50, Math.min(2000, opts?.delayMs ?? 300));
-      for (let i = 0; i < retries; i++) {
-        const fetchedId = await fetchProfile();
-        if (fetchedId) return true;
-        await new Promise((res) => setTimeout(res, delayMs));
+      if (memberResponse.error) {
+        console.error("Error loading business member:", memberResponse.error);
       }
-      // Último intento
-      const finalId = await fetchProfile();
-      return !!finalId;
+
+      const memberData = memberResponse.data;
+
+      console.log("UserProfile Hook - Business Found:", memberData?.business_id);
+
+      // Return constructed profile object
+      return {
+        id: user.id,
+        email: user.email,
+        first_name: profileResponse.data?.first_name,
+        last_name: profileResponse.data?.last_name,
+        avatar_url: profileResponse.data?.avatar_url,
+        business_id: memberData?.business_id,
+        role: memberData?.role,
+        // Compatibility layer
+        empresa_id: memberData?.business_id
+      };
     },
-    [fetchProfile],
-  );
+  });
 
-  useEffect(() => {
-    refetch();
-  }, [refetch]);
-
-  return { profile, loading, empresaId, refetch, awaitEmpresaId };
-};
+  return {
+    userProfile,
+    isLoading,
+    empresaId: userProfile?.business_id
+  };
+}

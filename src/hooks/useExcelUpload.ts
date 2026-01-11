@@ -1,14 +1,66 @@
 import { useState } from "react";
 import * as XLSX from "xlsx";
-import { supabase } from "@/integrations/supabase/newClient";
+import { supabase } from "@/integrations/supabase/client";
 import { useUserProfile } from "./useUserProfile";
-import { sanitizeCell, parseDecimal, parseInteger, uploadProductosCore } from "./excelUploadCore";
+
+// Helper to clean and format strings
+const cleanStr = (val: any) => String(val || "").trim();
+
+// Helper to clean price strings (handle $ 12.500 -> 12500)
+const cleanPrice = (val: any): number => {
+  if (!val) return 0;
+  if (typeof val === 'number') return val;
+
+  const str = String(val).trim();
+  // Remove currency symbols and spaces
+  let cleaned = str.replace(/[$\s]/g, '');
+
+  // Handle formats like "12.500" (thousands dot) vs "12,500" (thousands comma or decimal comma)
+  // Heuristic: If it has both dot and comma, the last one is decimal.
+  // If it has only dot or only comma:
+  // - If comma and followed by 1 or 2 digits -> likely decimal (10,5)
+  // - If dot and followed by 3 digits -> likely thousands (10.000) -> remove dot
+
+  if (cleaned.includes('.') && cleaned.includes(',')) {
+    if (cleaned.indexOf('.') < cleaned.indexOf(',')) {
+      // 12.500,00 -> remove dot, replace comma with dot
+      cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+    } else {
+      // 12,500.00 -> remove comma
+      cleaned = cleaned.replace(/,/g, '');
+    }
+  } else if (cleaned.includes('.')) {
+    // Check if it looks like thousands (e.g. 10.000 or 1.000.000)
+    const parts = cleaned.split('.');
+    const lastPart = parts[parts.length - 1];
+    if (parts.length > 1 && lastPart.length === 3) {
+      // Assume thousands separator
+      cleaned = cleaned.replace(/\./g, '');
+    }
+  } else if (cleaned.includes(',')) {
+    // Check if it looks like thousands (e.g. 10,000) or decimal (10,50)
+    const parts = cleaned.split(',');
+    const lastPart = parts[parts.length - 1];
+    if (parts.length > 1 && lastPart.length === 3) {
+      // Ambiguous: 10,000 could be 10k or 10.000
+      // In param context (COP), typically comma is thousands or decimals.
+      // Let's assume if it matches exactly 3 digits it might be thousands, unless it's small value.
+      // SAFEST BET: Replace comma with dot ONLY if it looks like decimal.
+      // actually for "12,500" user said it's 12500 pesos.
+      // So remove comma.
+      cleaned = cleaned.replace(/,/g, '');
+    } else {
+      // 10,50 -> 10.50
+      cleaned = cleaned.replace(',', '.');
+    }
+  }
+
+  return Number(cleaned) || 0;
+};
 
 export const useExcelUpload = () => {
   const [loading, setLoading] = useState(false);
   const { empresaId } = useUserProfile();
-
-  // sanitizeCell/parseDecimal/parseInteger ahora provienen de excelUploadCore para permitir testeo aislado
 
   const uploadProveedores = async (file: File) => {
     if (!empresaId) throw new Error("No se encontró empresa asociada");
@@ -18,40 +70,38 @@ export const useExcelUpload = () => {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false });
 
       if (jsonData.length === 0) throw new Error("El archivo está vacío");
 
-      // Validar columnas requeridas
       const firstRow: any = jsonData[0];
       if (!firstRow.nombre) {
         throw new Error("La columna 'nombre' es obligatoria");
       }
 
-      // Obtener proveedores existentes para evitar duplicados
-      const { data: existingProveedores } = await supabase
-        .from("proveedores")
-        .select("nombre")
-        .eq("empresa_id", empresaId);
+      const { data: existingProveedores } = await (supabase as any)
+        .from("suppliers")
+        .select("name")
+        .eq("business_id", empresaId);
 
-      const existingNames = new Set(existingProveedores?.map((p) => p.nombre.toLowerCase()) || []);
+      const existingNames = new Set((existingProveedores as any[])?.map((p) => p.name.toLowerCase()) || []);
 
       const newProveedores = jsonData
         .map((row: any) => ({
-          nombre: sanitizeCell(row.nombre || ""),
-          contacto: row.contacto ? sanitizeCell(row.contacto) : null,
-          email: row.email ? sanitizeCell(row.email) : null,
-          telefono: row.telefono ? sanitizeCell(row.telefono) : null,
-          direccion: row.direccion ? sanitizeCell(row.direccion) : null,
-          empresa_id: empresaId,
+          name: String(row.nombre || "").trim(),
+          contact_name: row.contacto ? String(row.contacto).trim() : null,
+          email: row.email ? String(row.email).trim() : null,
+          phone: row.telefono ? String(row.telefono).trim() : null,
+          address: row.direccion ? String(row.direccion).trim() : null,
+          business_id: empresaId,
         }))
-        .filter((p) => p.nombre && !existingNames.has(p.nombre.toLowerCase()));
+        .filter((p) => p.name && !existingNames.has(p.name.toLowerCase()));
 
       if (newProveedores.length === 0) {
         throw new Error("Todos los proveedores ya existen");
       }
 
-      const { error } = await supabase.from("proveedores").insert(newProveedores);
+      const { error } = await (supabase as any).from("suppliers").insert(newProveedores);
       if (error) throw error;
 
       return {
@@ -63,6 +113,36 @@ export const useExcelUpload = () => {
     }
   };
 
+
+  // Helper to normalize keys (remove accents, lowercase, handle aliases)
+  const normalizeHeaders = (data: any[]) => {
+    if (!data || data.length === 0) return [];
+
+    const firstRow = data[0];
+    const keys = Object.keys(firstRow);
+
+    const mapKey = (key: string) => {
+      const k = key.toLowerCase().trim();
+      if (k.includes("código") || k.includes("codigo") || k === "sku") return "codigo";
+      if (k.includes("nombre") || k.includes("producto")) return "nombre";
+      if (k.includes("descripción") || k.includes("descripcion")) return "descripcion";
+      if (k.includes("categoría") || k.includes("categoria")) return "categoria";
+      if (k.includes("proveedor")) return "proveedor";
+      if (k.includes("precio") || k.includes("costo")) return "precio";
+      if (k.includes("stock actual") || k === "stock" || k.includes("cantidad")) return "stock";
+      if (k.includes("stock mínimo") || k.includes("stock minimo")) return "stock_minimo";
+      return key.toLowerCase().replace(/\s+/g, "_");
+    };
+
+    return data.map(row => {
+      const newRow: any = {};
+      Object.keys(row).forEach(key => {
+        newRow[mapKey(key)] = row[key];
+      });
+      return newRow;
+    });
+  };
+
   const uploadProductos = async (file: File, categorias: any[], proveedores: any[]) => {
     if (!empresaId) throw new Error("No se encontró empresa asociada");
 
@@ -71,190 +151,103 @@ export const useExcelUpload = () => {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      const rawData = XLSX.utils.sheet_to_json(worksheet, { raw: false });
 
-      if (jsonData.length === 0) throw new Error("El archivo está vacío");
+      if (rawData.length === 0) throw new Error("El archivo está vacío");
 
-      // Delegar en función pura para facilitar testeo y evitar hooks
-      return await uploadProductosCore(
-        jsonData as any[],
-        empresaId,
-        supabase,
-        categorias,
-        proveedores,
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+      // Normalize headers
+      const jsonData = normalizeHeaders(rawData);
 
-  const uploadVentas = async (file: File) => {
-    if (!empresaId) throw new Error("No se encontró empresa asociada");
-
-    setLoading(true);
-    try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-      if (jsonData.length === 0) throw new Error("El archivo está vacío");
-
-      // Validar columnas
       const firstRow: any = jsonData[0];
-      if (
-        !firstRow.producto_codigo ||
-        !firstRow.cantidad ||
-        !firstRow.precio_unitario ||
-        !firstRow.metodo_pago
-      ) {
-        throw new Error("Faltan columnas obligatorias");
+      if (!firstRow.codigo || !firstRow.nombre) {
+        console.error("Columnas encontradas:", Object.keys(firstRow));
+        throw new Error(`Las columnas 'codigo' y 'nombre' son obligatorias. Se detectaron: ${Object.keys(firstRow).join(", ")}`);
       }
 
-      // Obtener productos
-      const { data: productos } = await supabase
-        .from("productos")
-        .select("id, codigo, stock")
-        .eq("empresa_id", empresaId);
+      const { data: existingVariants } = await (supabase as any)
+        .from("product_variants")
+        .select("sku")
+        .eq("business_id", empresaId);
 
-      const productoMap = new Map(productos?.map((p) => [p.codigo.toLowerCase(), p]) || []);
+      const existingCodes = new Set((existingVariants as any[])?.map(v => v.sku?.toLowerCase()) || []);
 
-      // Obtener usuario actual
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuario no autenticado");
+      const categoriaMap = new Map(categorias.map(c => [c.nombre.toLowerCase(), c.id]));
+      const proveedorMap = new Map(proveedores.map(p => [p.nombre.toLowerCase(), p.id]));
 
-      // Agrupar ventas por fecha y cliente
-      const ventasAgrupadas = new Map<string, any[]>();
+      const newProductos = jsonData
+        .map((row: any) => {
+          const codigo = String(row.codigo || "").trim();
+          // Skip if no code or already exists
+          if (!codigo || existingCodes.has(codigo.toLowerCase())) return null;
 
-      for (const row of jsonData) {
-        const rowData = row as any;
-        const codigo = sanitizeCell(rowData.producto_codigo).toLowerCase();
-        const producto = productoMap.get(codigo);
-
-        if (!producto) {
-          console.warn(`Producto ${rowData.producto_codigo} no encontrado, omitiendo`);
-          continue;
-        }
-
-        const cantidad = parseInt(String(rowData.cantidad));
-        if (cantidad > producto.stock) {
-          throw new Error(
-            `Stock insuficiente para ${rowData.producto_codigo}. Disponible: ${producto.stock}`,
-          );
-        }
-
-        const key = `${sanitizeCell(rowData.fecha || new Date().toISOString().split("T")[0])}_${sanitizeCell(rowData.cliente || "General")}`;
-        if (!ventasAgrupadas.has(key)) {
-          ventasAgrupadas.set(key, []);
-        }
-
-        ventasAgrupadas.get(key)!.push({
-          producto_id: producto.id,
-          cantidad,
-          precio_unitario: Number(rowData.precio_unitario),
-          subtotal: cantidad * Number(rowData.precio_unitario),
-          fecha: sanitizeCell(rowData.fecha),
-          cliente: sanitizeCell(rowData.cliente),
-          metodo_pago: rowData.metodo_pago,
-        });
-      }
-
-      let totalVentasInsertadas = 0;
-
-      // Insertar ventas agrupadas
-      for (const [key, items] of ventasAgrupadas) {
-        const total = items.reduce((sum, item) => sum + item.subtotal, 0);
-
-        // Insertar venta
-        const { data: venta, error: ventaError } = await supabase
-          .from("ventas")
-          .insert({
-            cliente: sanitizeCell(items[0].cliente) || null,
-            metodo_pago: items[0].metodo_pago,
-            total,
+          return {
+            codigo,
+            nombre: String(row.nombre || "").trim(),
+            descripcion: row.descripcion ? String(row.descripcion).trim() : null,
+            categoria_id: row.categoria ? categoriaMap.get(String(row.categoria).toLowerCase()) : null,
+            proveedor_id: row.proveedor ? proveedorMap.get(String(row.proveedor).toLowerCase()) : null,
+            precio: cleanPrice(row.precio),
+            stock: parseInt(String(row.stock || 0)),
+            stock_minimo: parseInt(String(row.stock_minimo || 0)),
             empresa_id: empresaId,
-            user_id: user.id,
-            created_at: items[0].fecha ? new Date(items[0].fecha).toISOString() : undefined,
-          })
-          .select()
-          .single();
+          };
+        })
+        .filter(p => p !== null);
 
-        if (ventaError) throw ventaError;
+      if (newProductos.length === 0) {
+        throw new Error("No hay productos nuevos válidos para importar");
+      }
 
-        // Insertar detalles
-        const detalles = items.map((item) => ({
-          venta_id: venta.id,
-          producto_id: item.producto_id,
-          cantidad: item.cantidad,
-          precio_unitario: item.precio_unitario,
-          subtotal: item.subtotal,
-        }));
+      // Insert Products
+      const productsToInsert = newProductos.map(p => ({
+        business_id: p.empresa_id,
+        name: p.nombre,
+        description: p.descripcion,
+        category_id: p.categoria_id,
+        supplier_id: p.proveedor_id
+      }));
 
-        const { error: detalleError } = await supabase.from("ventas_detalle").insert(detalles);
+      // We need to insert one by one or in batches to get IDs back correctly
+      // For simplicity/safety, we'll fetch all products after insertion or just insert individually if performance allows.
+      // Batch insert returns all rows but order is NOT guaranteed to match perfectly if triggers exist, though usually it does.
+      // Optimistic matching by name + business_id
+      const { data: insertedProducts, error: prodError } = await (supabase as any)
+        .from("products")
+        .insert(productsToInsert)
+        .select("id, name");
 
-        if (detalleError) throw detalleError;
+      if (prodError) throw prodError;
+      if (!insertedProducts) throw new Error("Falló la inserción de productos");
 
-        // Actualizar stock
-        for (const item of items) {
-          const producto = productoMap.get(
-            productos?.find((p) => p.id === item.producto_id)?.codigo.toLowerCase() || "",
-          );
-          if (producto) {
-            await supabase
-              .from("productos")
-              .update({ stock: producto.stock - item.cantidad })
-              .eq("id", item.producto_id);
-          }
-        }
+      // Verify alignment (Map by Name)
+      // Note: If multiple products have same name, this might be ambiguous. 
+      // Ideally we would insert one by one inside a loop or transaction if backend supported it easily via API.
+      // But for bulk script, name matching is acceptable risk if names are unique-ish.
+      const initialMap = new Map((insertedProducts as any[]).map(p => [p.name, p.id]));
 
-        // Upsert automático del cliente en módulo Clientes
-        try {
-          const nombreCliente = sanitizeCell(items[0].cliente || "");
-          if (nombreCliente) {
-            const nowIso = venta.created_at
-              ? new Date(venta.created_at).toISOString()
-              : items[0].fecha
-                ? new Date(items[0].fecha).toISOString()
-                : new Date().toISOString();
-            const { data: existing } = await supabase
-              .from("clientes")
-              .select("id, total_comprado, compras_count, fecha_primera_compra")
-              .eq("empresa_id", empresaId)
-              .eq("nombre", nombreCliente)
-              .maybeSingle();
+      // Prepare Variants
+      const variantsToInsert = newProductos.map(p => {
+        const prodId = initialMap.get(p.nombre);
+        if (!prodId) return null;
+        return {
+          product_id: prodId,
+          business_id: p.empresa_id,
+          sku: p.codigo,
+          price: p.precio,
+          stock_level: p.stock
+        };
+      }).filter(v => v !== null);
 
-            if (!existing) {
-              await supabase.from("clientes").insert({
-                empresa_id: empresaId,
-                nombre: nombreCliente,
-                fecha_primera_compra: nowIso,
-                fecha_ultima_compra: nowIso,
-                total_comprado: Number(total || 0),
-                compras_count: 1,
-              });
-            } else {
-              await supabase
-                .from("clientes")
-                .update({
-                  fecha_ultima_compra: nowIso,
-                  total_comprado: Number(existing.total_comprado || 0) + Number(total || 0),
-                  compras_count: Number(existing.compras_count || 0) + 1,
-                })
-                .eq("id", existing.id);
-            }
-          }
-        } catch (clErr) {
-          console.warn("[Clientes] No se pudo upsert el cliente tras venta (Excel)", clErr);
-        }
-
-        totalVentasInsertadas++;
+      if (variantsToInsert.length > 0) {
+        const { error: varError } = await (supabase as any)
+          .from("product_variants")
+          .insert(variantsToInsert);
+        if (varError) throw varError;
       }
 
       return {
-        inserted: totalVentasInsertadas,
-        duplicates: 0,
+        inserted: newProductos.length,
+        duplicates: rawData.length - newProductos.length,
       };
     } finally {
       setLoading(false);
@@ -264,7 +257,7 @@ export const useExcelUpload = () => {
   return {
     uploadProveedores,
     uploadProductos,
-    uploadVentas,
     loading,
   };
 };
+

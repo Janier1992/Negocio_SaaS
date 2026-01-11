@@ -1,504 +1,306 @@
-import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import {
+    Bell,
+    AlertTriangle,
+    CheckCircle,
+    Info,
+    Settings,
+    Sparkles,
+    User,
+    Bot,
+    Send,
+    X,
+    MessageCircle,
+    ChevronDown,
+    Clock
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { AlertTriangle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/newClient";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import { toast } from "sonner";
-import { useSearchParams } from "react-router-dom";
-import { fetchAlertsPaged, subscribeAlerts, markAlertRead, AlertRow } from "@/services/alerts";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { chatWithAI } from "@/services/aiService";
+import { cn } from "@/lib/utils";
 
-type Alerta = AlertRow & { producto_id?: string | null };
+type AlertType = "warning" | "success" | "info" | "error";
 
-const Alertas = () => {
-  const { empresaId, loading: profileLoading } = useUserProfile();
-  const [loading, setLoading] = useState(true);
-  const [alertas, setAlertas] = useState<Alerta[]>([]);
-  const [productosMap, setProductosMap] = useState<
-    Map<string, { nombre?: string; codigo?: string; stock?: number }>
-  >(new Map());
-  const [search, setSearch] = useState("");
-  const [estado, setEstado] = useState<"todas" | "activas" | "leidas">("todas");
-  const [tipo, setTipo] = useState<"todos" | "stock_bajo" | "stock_critico">("todos");
-  const [supportsLeida, setSupportsLeida] = useState(true);
-  const [dateFrom, setDateFrom] = useState<string | null>(null);
-  const [dateTo, setDateTo] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<"fecha" | "prioridad" | "tipo">("fecha");
-  const [sortAsc, setSortAsc] = useState<boolean>(false);
-  const [totalActivas, setTotalActivas] = useState<number>(0);
-  const [params] = useSearchParams();
-  const [page, setPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(10);
-  const [totalCount, setTotalCount] = useState<number>(0);
+interface AlertItem {
+    id: string;
+    title: string;
+    description: string;
+    type: AlertType;
+    date: Date;
+    read: boolean;
+    source: "inventory" | "system" | "sales";
+}
 
-  const fetchAlertas = async () => {
-    if (!empresaId) return;
-    setLoading(true);
-    try {
-      const desde = dateFrom ? new Date(dateFrom).toISOString() : undefined;
-      const hasta = dateTo ? new Date(dateTo).toISOString() : undefined;
-      const orderBy =
-        sortKey === "fecha" ? "created_at" : sortKey === "tipo" ? "tipo" : "created_at";
-      try {
-        const leidaFilter = supportsLeida
-          ? estado === "activas"
-            ? false
-            : estado === "leidas"
-              ? true
-              : undefined
-          : undefined;
-        const tipoFilter = tipo === "todos" ? undefined : tipo;
-        const { rows, count } = await fetchAlertsPaged({
-          empresaId,
-          desde,
-          hasta,
-          tipo: tipoFilter,
-          leida: leidaFilter,
-          search,
-          orderBy,
-          orderAsc: sortAsc,
-          page,
-          pageSize,
-        });
-        const dbRows = rows as Alerta[];
-        setSupportsLeida(true);
-        const ids = Array.from(new Set(dbRows.map((r) => String(r.producto_id)).filter(Boolean)));
-        if (ids.length > 0) {
-          const { data: prodRows, error: prodErr } = await supabase
-            .from("productos")
-            .select("id, nombre, codigo, stock")
-            .in("id", ids);
-          if (!prodErr) {
-            const map = new Map<string, { nombre?: string; codigo?: string; stock?: number }>();
-            for (const p of prodRows || []) {
-              map.set(String(p.id), { nombre: p.nombre, codigo: p.codigo, stock: p.stock });
-            }
-            setProductosMap(map);
-          }
-        } else {
-          setProductosMap(new Map());
+interface ChatMessage {
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    timestamp: Date;
+}
+
+export default function Alertas() {
+    const { empresaId } = useUserProfile();
+    const [filter, setFilter] = useState<"all" | "unread">("all");
+    const [isOpen, setIsOpen] = useState(false);
+    const [chatInput, setChatInput] = useState("");
+    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+        {
+            id: "welcome",
+            role: "assistant",
+            content: "Hola. Soy tu asistente de negocios. Puedo ayudarte a analizar tus alertas o darte recomendaciones sobre tu inventario y ventas. ¿En qué te ayudo hoy?",
+            timestamp: new Date()
         }
-        // Genera SIEMPRE alertas sintéticas desde productos y combina con las reales
-        const { data: prods, error: prodsErr } = await supabase
-          .from("productos")
-          .select("id, nombre, codigo, stock, stock_minimo")
-          .eq("empresa_id", empresaId);
-        let synthetic: Alerta[] = [];
-        if (!prodsErr && Array.isArray(prods)) {
-          for (const p of prods) {
-            const stock = Number(p.stock || 0);
-            const min = Number(p.stock_minimo || 0);
-            if (min > 0) {
-              const nombre = p.nombre || String(p.id);
-              const crit = stock <= Math.floor(min / 2);
-              const bajo = !crit && stock <= min;
-              if (crit || bajo) {
-                const tipoVal = crit ? "stock_critico" : "stock_bajo";
-                // Filtros actuales aplicados a sintéticas
-                if (tipoFilter && tipoFilter !== tipoVal) continue;
-                if (leidaFilter === true) continue; // sintéticas no son leídas
-                const titulo = crit ? `Stock crítico en ${nombre}` : `Stock bajo en ${nombre}`;
-                const mensaje = crit
-                  ? `Stock (${stock}) por debajo de la mitad del mínimo (${min}).`
-                  : `Stock (${stock}) por debajo del mínimo (${min}).`;
-                const searchLow = (search || "").trim().toLowerCase();
-                if (searchLow) {
-                  const hay =
-                    titulo.toLowerCase().includes(searchLow) ||
-                    mensaje.toLowerCase().includes(searchLow);
-                  if (!hay) continue;
-                }
-                const nowIso = new Date().toISOString();
-                if (desde && nowIso < desde) continue;
-                if (hasta && nowIso > hasta) continue;
-                synthetic.push({
-                  id: `synthetic:${p.id}:${crit ? "critico" : "bajo"}`,
-                  tipo: tipoVal,
-                  titulo,
-                  mensaje,
-                  created_at: nowIso,
-                  leida: false,
-                  producto_id: String(p.id),
-                });
-              }
+    ]);
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Fetch Low Stock Products
+    const { data: lowStockProducts = [] } = useQuery({
+        queryKey: ["low_stock_alerts", empresaId],
+        queryFn: async () => {
+            if (!empresaId) return [];
+            const { data, error } = await supabase
+                .from("product_variants")
+                .select("*, product:product_id(name)")
+                .lt("stock_level", 10)
+                .limit(20);
+
+            if (error) {
+                console.error("Error fetching low stock", error);
+                return [];
             }
-          }
+            return data as any[];
+        },
+        enabled: !!empresaId
+    });
+
+    // Real System Alerts (Empty for now until backend implementation)
+    const [alerts, setAlerts] = useState<AlertItem[]>([]);
+
+    // Merge Real Stock Alerts
+    useEffect(() => {
+        if (lowStockProducts.length > 0) {
+            const stockAlerts: AlertItem[] = lowStockProducts.map((variant: any) => ({
+                id: `stock-${variant.id}`,
+                title: "Stock Bajo Detectado",
+                description: `El producto "${variant.product?.name || 'Item'}" (SKU: ${variant.sku || 'N/A'}) tiene solo ${variant.stock_level} unidades.`,
+                type: "warning",
+                date: new Date(),
+                read: false,
+                source: "inventory"
+            }));
+
+            setAlerts(prev => {
+                const existingIds = new Set(prev.map(a => a.id));
+                const newAlerts = stockAlerts.filter(a => !existingIds.has(a.id));
+                return [...newAlerts, ...prev].sort((a, b) => b.date.getTime() - a.date.getTime());
+            });
         }
-        const combined = [...dbRows, ...synthetic];
-        setAlertas(combined);
-        setTotalCount((count || 0) + synthetic.length);
-      } catch (error: any) {
-        const msg = String(error?.message || "").toLowerCase();
-        if (msg.includes("column") && msg.includes("leida")) {
-          console.warn(
-            "[Alertas] Faltan columnas leida en la instancia. Fallback a columnas básicas.",
-          );
-          setSupportsLeida(false);
-          const retry = await supabase
-            .from("alertas")
-            .select("id, tipo, titulo, mensaje, created_at")
-            .eq("empresa_id", empresaId)
-            .order("created_at", { ascending: sortAsc });
-          if (retry.error) throw retry.error;
-          const dbBasic = (retry.data || []) as Alerta[];
-          // Combina con sintéticas también en modo básico
-          const { data: prods, error: prodsErr } = await supabase
-            .from("productos")
-            .select("id, nombre, codigo, stock, stock_minimo")
-            .eq("empresa_id", empresaId);
-          let syntheticBasic: Alerta[] = [];
-          if (!prodsErr && Array.isArray(prods)) {
-            for (const p of prods) {
-              const stock = Number(p.stock || 0);
-              const min = Number(p.stock_minimo || 0);
-              if (min > 0) {
-                const nombre = p.nombre || String(p.id);
-                const crit = stock <= Math.floor(min / 2);
-                const bajo = !crit && stock <= min;
-                if (crit || bajo) {
-                  const tipoVal = crit ? "stock_critico" : "stock_bajo";
-                  syntheticBasic.push({
-                    id: `synthetic:${p.id}:${crit ? "critico" : "bajo"}`,
-                    tipo: tipoVal,
-                    titulo: crit ? `Stock crítico en ${nombre}` : `Stock bajo en ${nombre}`,
-                    mensaje: crit
-                      ? `Stock (${stock}) por debajo de la mitad del mínimo (${min}).`
-                      : `Stock (${stock}) por debajo del mínimo (${min}).`,
-                    created_at: new Date().toISOString(),
-                    leida: false,
-                    producto_id: String(p.id),
-                  });
-                }
-              }
-            }
-          }
-          setAlertas([...dbBasic, ...syntheticBasic]);
-          setTotalCount((dbBasic.length || 0) + (syntheticBasic.length || 0));
-        } else {
-          throw error;
+    }, [lowStockProducts]);
+
+    // Auto-scroll chat
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-      }
-    } catch (err: any) {
-      const low = String(err?.message || "").toLowerCase();
-      const isAbort = low.includes("abort") || /err_aborted/i.test(low);
-      const isNetwork = /failed to fetch|network/i.test(low);
-      if (isAbort) {
-        // Navegación abortada o cancelaciones internas: no mostrar error
-      } else if (isNetwork) {
-        toast.error("Sin conexión con el servidor. Reintenta en unos segundos…");
-        // Fallback de red: intenta construir alertas sintéticas desde productos
+    }, [chatMessages, isOpen]);
+
+    const handleSendMessage = async () => {
+        if (!chatInput.trim()) return;
+
+        const userMsg: ChatMessage = {
+            id: Date.now().toString(),
+            role: "user",
+            content: chatInput,
+            timestamp: new Date()
+        };
+
+        setChatMessages(prev => [...prev, userMsg]);
+        setChatInput("");
+
+        // Prepare context from alerts and low stock
+        const context = `
+            Alertas Activas: ${alerts.filter(a => !a.read).length}.
+            Productos con Stock Bajo: ${lowStockProducts.map(p => `${p.product?.name} (${p.stock_level})`).join(", ")}.
+        `;
+
         try {
-          const { data: prods, error: prodsErr } = await supabase
-            .from("productos")
-            .select("id, nombre, codigo, stock, stock_minimo")
-            .eq("empresa_id", empresaId);
-          if (!prodsErr && Array.isArray(prods)) {
-            const synthetic: Alerta[] = [];
-            const map = new Map<string, { nombre?: string; codigo?: string; stock?: number }>();
-            for (const p of prods) {
-              const stock = Number(p.stock || 0);
-              const min = Number(p.stock_minimo || 0);
-              if (min > 0) {
-                const nombre = p.nombre || String(p.id);
-                if (stock <= Math.floor(min / 2)) {
-                  synthetic.push({
-                    id: `synthetic:${p.id}:critico`,
-                    tipo: "stock_critico",
-                    titulo: `Stock crítico en ${nombre}`,
-                    mensaje: `Stock (${stock}) por debajo de la mitad del mínimo (${min}).`,
-                    created_at: new Date().toISOString(),
-                    leida: false,
-                    producto_id: String(p.id),
-                  });
-                } else if (stock <= min) {
-                  synthetic.push({
-                    id: `synthetic:${p.id}:bajo`,
-                    tipo: "stock_bajo",
-                    titulo: `Stock bajo en ${nombre}`,
-                    mensaje: `Stock (${stock}) por debajo del mínimo (${min}).`,
-                    created_at: new Date().toISOString(),
-                    leida: false,
-                    producto_id: String(p.id),
-                  });
-                }
-                map.set(String(p.id), { nombre: p.nombre, codigo: p.codigo, stock: p.stock });
-              }
-            }
-            setAlertas(synthetic);
-            setProductosMap(map);
-            setSupportsLeida(false);
-            setTotalCount(synthetic.length);
-          }
-        } catch (fallbackErr) {
-          console.warn("[Alertas] Fallback de red desde productos falló:", fallbackErr);
+            const responseText = await chatWithAI(userMsg.content, context);
+            const aiMsg: ChatMessage = {
+                id: (Date.now() + 1).toString(),
+                role: "assistant",
+                content: responseText,
+                timestamp: new Date()
+            };
+            setChatMessages(prev => [...prev, aiMsg]);
+        } catch (error) {
+            const errorMsg: ChatMessage = {
+                id: (Date.now() + 1).toString(),
+                role: "assistant",
+                content: "Lo siento, hubo un error al conectar con el servicio de IA.",
+                timestamp: new Date()
+            };
+            setChatMessages(prev => [...prev, errorMsg]);
         }
-      } else {
-        toast.error("Error al cargar alertas");
-      }
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!empresaId) return;
-    // Inicializa filtros desde query params (sincronizado con Dashboard)
-    const qpDesde = params.get("desde");
-    const qpHasta = params.get("hasta");
-    if (qpDesde) setDateFrom(qpDesde);
-    if (qpHasta) setDateTo(qpHasta);
-    fetchAlertas();
-    const chAlertas = subscribeAlerts(empresaId, () => fetchAlertas());
-    // Suscripción adicional a productos para actualizar el fallback
-    const chProductos = supabase
-      .channel(`alertas-productos-${empresaId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "productos", filter: `empresa_id=eq.${empresaId}` },
-        () => fetchAlertas(),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(chAlertas);
-      supabase.removeChannel(chProductos);
     };
-  }, [empresaId]);
 
-  const marcarLeida = async (id: string) => {
-    const isUuid = /^[0-9a-fA-F-]{36}$/.test(id);
-    try {
-      // Persistir sólo si es alerta real y hay soporte de columna 'leida'
-      if (isUuid && supportsLeida) {
-        await markAlertRead(id, true);
-      }
-      // Siempre reflejar en UI
-      setAlertas((prev) => prev.map((a) => (a.id === id ? { ...a, leida: true } : a)));
-      toast.success("Alerta marcada como leída");
-    } catch (err: any) {
-      toast.error("No se pudo marcar la alerta");
-      console.error(err);
-    }
-  };
+    const filteredAlerts = filter === "all" ? alerts : alerts.filter(a => !a.read);
+    const markAsRead = (id: string) => setAlerts(prev => prev.map(a => a.id === id ? { ...a, read: true } : a));
+    const deleteAlert = (id: string) => setAlerts(prev => prev.filter(a => a.id !== id));
 
-  const marcarTodasLeidas = async () => {
-    try {
-      const ids = filteredAlertas.map((a) => a.id);
-      if (ids.length === 0) return;
-      // Persistir sólo ids reales (UUID) cuando hay soporte; el resto se marca localmente
-      const uuidRegex = /^[0-9a-fA-F-]{36}$/;
-      const realIds = supportsLeida ? ids.filter((id) => uuidRegex.test(id)) : [];
-      if (realIds.length > 0) {
-        const { error } = await supabase.from("alertas").update({ leida: true }).in("id", realIds);
-        if (error) throw error;
-      }
-      setAlertas((prev) => prev.map((a) => ({ ...a, leida: true })));
-      toast.success("Todas las alertas visibles marcadas como leídas");
-    } catch (err: any) {
-      toast.error("No se pudieron marcar las alertas");
-      console.error(err);
-    }
-  };
+    const getIcon = (type: AlertType) => {
+        switch (type) {
+            case "warning": return <AlertTriangle className="size-5 text-orange-500" />;
+            case "error": return <AlertTriangle className="size-5 text-red-500" />;
+            case "success": return <CheckCircle className="size-5 text-green-500" />;
+            case "info": return <Info className="size-5 text-blue-500" />;
+        }
+    };
 
-  const filteredAlertas = useMemo(() => {
-    // El orden y filtros principales se aplican server-side; aquí sólo devolvemos la página actual
-    return alertas;
-  }, [alertas]);
+    const getBgColor = (type: AlertType) => {
+        switch (type) {
+            case "warning": return "bg-orange-50 dark:bg-orange-900/10 border-orange-100 dark:border-orange-900/30";
+            case "error": return "bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30";
+            case "success": return "bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-900/30";
+            case "info": return "bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/30";
+        }
+    };
 
-  useEffect(() => {
-    setTotalActivas(alertas.filter((a) => !a.leida).length);
-  }, [alertas]);
-
-  const getTipoBadge = (t: string) => {
-    switch (t) {
-      case "stock_critico":
-        return <Badge variant="destructive">Stock Crítico</Badge>;
-      case "stock_bajo":
-        return <Badge className="bg-warning text-warning-foreground">Stock Bajo</Badge>;
-      default:
-        return <Badge>Alerta</Badge>;
-    }
-  };
-
-  if (profileLoading || loading) {
-    return <div className="flex items-center justify-center h-96">Cargando...</div>;
-  }
-
-  if (!empresaId) {
     return (
-      <div className="flex items-center justify-center h-96 text-muted-foreground">
-        No hay empresa asociada a tu usuario. Completa el registro y vuelve a intentar.
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-foreground">Alertas</h2>
-          <p className="text-muted-foreground mt-1">Gestión de alertas del sistema</p>
-          <div className="text-sm mt-1">
-            Activas: <span className="font-semibold">{totalActivas}</span>
-          </div>
-        </div>
-        {/* Se eliminan botones secundarios del header para simplificar el módulo */}
-      </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Listado de Alertas</CardTitle>
-            <Button variant="default" onClick={marcarTodasLeidas}>
-              Marcar todas como leídas
-            </Button>
-          </div>
-          <div className="grid grid-cols-1 gap-3 mt-4">
-            <div className="flex gap-2">
-              <Button
-                variant={tipo === "todos" ? "default" : "outline"}
-                onClick={() => setTipo("todos")}
-              >
-                Todos
-              </Button>
-              <Button
-                variant={tipo === "stock_bajo" ? "default" : "outline"}
-                onClick={() => setTipo("stock_bajo")}
-              >
-                Stock Bajo
-              </Button>
-              <Button
-                variant={tipo === "stock_critico" ? "default" : "outline"}
-                onClick={() => setTipo("stock_critico")}
-              >
-                Stock Crítico
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setTipo("todos");
-                  setSearch("");
-                  setDateFrom(null);
-                  setDateTo(null);
-                  setSortKey("fecha");
-                  setSortAsc(false);
-                  setPage(1);
-                  fetchAlertas();
-                }}
-              >
-                Limpiar
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {filteredAlertas.length === 0 ? (
-            <div className="text-sm text-muted-foreground">
-              No hay alertas para los filtros seleccionados.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredAlertas.map((a) => (
-                <div
-                  key={a.id}
-                  className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg border border-border"
-                >
-                  <AlertTriangle className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-foreground">{a.titulo}</p>
-                      {getTipoBadge(a.tipo)}
-                      {a.leida && <Badge variant="outline">Leída</Badge>}
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">{a.mensaje}</p>
-                    {a.producto_id && productosMap.get(String(a.producto_id)) && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        <span className="font-medium">
-                          {productosMap.get(String(a.producto_id))?.nombre}
-                        </span>
-                        {productosMap.get(String(a.producto_id))?.codigo && (
-                          <span className="ml-2">
-                            Código: {productosMap.get(String(a.producto_id))?.codigo}
-                          </span>
-                        )}
-                        <span className="ml-2">
-                          Stock: {productosMap.get(String(a.producto_id))?.stock ?? "-"}
-                        </span>
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(a.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {!a.leida && (
-                      <Button variant="outline" size="sm" onClick={() => marcarLeida(a.id)}>
-                        Marcar como leída
-                      </Button>
-                    )}
-                  </div>
+        <div className="relative flex flex-col h-[calc(100vh-2rem)] p-6 gap-6 bg-background-light dark:bg-background-dark font-sans animate-in fade-in duration-500">
+            {/* Header */}
+            <div className="flex justify-between items-center shrink-0">
+                <div>
+                    <h1 className="text-3xl font-black text-[#0d141b] dark:text-white tracking-tight flex items-center gap-3">
+                        <Sparkles className="size-8 text-primary" /> Alertas & Agente IA
+                    </h1>
+                    <p className="text-[#4c739a] dark:text-[#8babc8] mt-1 ml-11">Centro de inteligencia y notificaciones de tu negocio.</p>
                 </div>
-              ))}
+                <div className="flex gap-2">
+                    <Button variant="outline" className="gap-2" onClick={() => setIsOpen(true)}>
+                        <Bot className="size-4" /> Consultar Agente
+                    </Button>
+                </div>
             </div>
-          )}
-          <Separator className="my-4" />
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-xs text-muted-foreground">
-              Mostrando <span className="font-semibold">{filteredAlertas.length}</span> de{" "}
-              <span className="font-semibold">{totalCount}</span> alertas
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setPage((p) => Math.max(1, p - 1));
-                  fetchAlertas();
-                }}
-                disabled={page <= 1}
-              >
-                Anterior
-              </Button>
-              <span className="text-sm">
-                Página {page} de {Math.max(1, Math.ceil(totalCount / pageSize))}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-                  setPage((p) => Math.min(totalPages, p + 1));
-                  fetchAlertas();
-                }}
-                disabled={page >= Math.max(1, Math.ceil(totalCount / pageSize))}
-              >
-                Siguiente
-              </Button>
-              <select
-                className="text-sm border rounded px-2 py-1 bg-background"
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setPage(1);
-                  fetchAlertas();
-                }}
-              >
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-              </select>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Las alertas se generan automáticamente según el stock y otros eventos.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
 
-export default Alertas;
+            {/* Main Content - Full Width Alerts */}
+            <div className="w-full flex flex-col gap-4 min-h-0 flex-1">
+                <div className="flex gap-2 items-center shrink-0">
+                    <h3 className="font-bold text-lg text-[#0d141b] dark:text-white">Notificaciones</h3>
+                    <div className="ml-auto flex bg-gray-100 dark:bg-[#1a2632] p-1 rounded-lg">
+                        <button onClick={() => setFilter("all")} className={`px-3 py-1 rounded-md text-sm font-medium transition-all ${filter === "all" ? "bg-white shadow text-primary" : "text-gray-500"}`}>Todas</button>
+                        <button onClick={() => setFilter("unread")} className={`px-3 py-1 rounded-md text-sm font-medium transition-all ${filter === "unread" ? "bg-white shadow text-primary" : "text-gray-500"}`}>Sin Leer</button>
+                    </div>
+                </div>
+
+                <ScrollArea className="flex-1 pr-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {filteredAlerts.length === 0 ? (
+                            <div className="col-span-full h-40 flex flex-col items-center justify-center text-center p-8 bg-white dark:bg-[#1a2632] rounded-xl border border-dashed border-[#e7edf3]">
+                                <Bell className="size-8 text-gray-300 mb-2" />
+                                <p className="text-[#4c739a]">No tienes notificaciones pendientes.</p>
+                            </div>
+                        ) : (
+                            filteredAlerts.map(alert => (
+                                <div key={alert.id} className={`group relative p-4 rounded-xl border transition-all hover:shadow-md ${getBgColor(alert.type)} ${alert.read ? 'opacity-70 grayscale-[0.5]' : 'bg-white dark:bg-[#1a2632] border-[#e7edf3] dark:border-[#2a3b4d]'}`}>
+                                    <div className="flex gap-4 items-start">
+                                        <div className="mt-1 shrink-0">{getIcon(alert.type)}</div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex justify-between items-start">
+                                                <h4 className={`font-bold text-sm truncate pr-2 ${alert.read ? 'text-[#4c739a]' : 'text-[#0d141b] dark:text-white'}`}>{alert.title}</h4>
+                                                <span className="text-xs text-[#4c739a] flex items-center gap-1 shrink-0">
+                                                    <Clock className="size-3" /> {format(alert.date, "p", { locale: es })}
+                                                </span>
+                                            </div>
+                                            <p className="text-sm text-[#4c739a] dark:text-[#8babc8] mt-1 line-clamp-2">{alert.description}</p>
+                                            {!alert.read && (
+                                                <div className="mt-3">
+                                                    <Button size="sm" variant="ghost" className="h-6 text-xs text-primary px-0 hover:bg-transparent hover:underline" onClick={() => markAsRead(alert.id)}>Marcar leído</Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <button onClick={() => deleteAlert(alert.id)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <X className="size-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </ScrollArea>
+            </div>
+
+            {/* Floating Chat Widget */}
+            <div className="fixed bottom-24 md:bottom-6 right-6 z-50 flex flex-col items-end gap-4 pointer-events-none">
+
+                {/* Chat Window */}
+                <div className={cn(
+                    "pointer-events-auto w-[380px] h-[600px] max-h-[70vh] bg-white dark:bg-[#1a2632] rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden transition-all duration-300 origin-bottom-right",
+                    isOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-90 translate-y-10 h-0"
+                )}>
+                    {/* Chat Header */}
+                    <div className="p-4 bg-primary text-primary-foreground flex justify-between items-center shrink-0">
+                        <div className="flex gap-3 items-center">
+                            <div className="p-1.5 bg-white/20 rounded-full">
+                                <Bot className="size-5 text-white" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-sm">Asistente Virtual</h3>
+                                <p className="text-[10px] text-green-200 flex items-center gap-1"><span className="size-1.5 rounded-full bg-green-400 animate-pulse"></span> En línea</p>
+                            </div>
+                        </div>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-white hover:bg-white/20 rounded-full" onClick={() => setIsOpen(false)}>
+                            <ChevronDown className="size-5" />
+                        </Button>
+                    </div>
+
+                    {/* Chat Messages */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50 dark:bg-transparent" ref={scrollRef}>
+                        {chatMessages.map(msg => (
+                            <div key={msg.id} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                                <div className={`size-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${msg.role === 'user' ? 'bg-[#0d141b] text-white' : 'bg-primary/10 text-primary'}`}>
+                                    {msg.role === 'user' ? <User className="size-4" /> : <Bot className="size-4" />}
+                                </div>
+                                <div className={`max-w-[85%] p-3 rounded-2xl text-sm shadow-sm ${msg.role === 'user' ? 'bg-[#0d141b] text-white rounded-tr-none' : 'bg-white dark:bg-[#23303e] text-[#0d141b] dark:text-white rounded-tl-none border border-gray-100 dark:border-gray-800'}`}>
+                                    <p>{msg.content}</p>
+                                    <span className="text-[10px] opacity-50 block mt-1 text-right">{format(msg.timestamp, "HH:mm")}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Chat Input */}
+                    <div className="p-3 border-t border-[#e7edf3] dark:border-[#2a3b4d] bg-white dark:bg-[#1a2632] shrink-0">
+                        <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex gap-2 relative">
+                            <Input
+                                placeholder="Escribe tu consulta..."
+                                value={chatInput}
+                                onChange={(e) => setChatInput(e.target.value)}
+                                className="pr-10 bg-gray-50 dark:bg-[#23303e] border-gray-200 dark:border-gray-700 focus-visible:ring-1 focus-visible:ring-primary rounded-full px-4 h-11"
+                            />
+                            <Button type="submit" size="icon" className="absolute right-1 top-1 h-9 w-9 rounded-full bg-primary hover:bg-primary/90 transition-colors shadow-sm" disabled={!chatInput.trim()}>
+                                <Send className="size-4" />
+                            </Button>
+                        </form>
+                    </div>
+                </div>
+
+                {/* Toggle Button (FAB) */}
+                <Button
+                    onClick={() => setIsOpen(!isOpen)}
+                    className={cn(
+                        "pointer-events-auto h-14 w-14 rounded-full shadow-xl bg-primary hover:bg-primary/90 aspect-square p-0 flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 z-50",
+                        isOpen ? "rotate-90 bg-red-500 hover:bg-red-600" : ""
+                    )}
+                >
+                    {isOpen ? <X className="size-6" /> : <MessageCircle className="size-8" />}
+                </Button>
+            </div>
+        </div>
+    );
+}

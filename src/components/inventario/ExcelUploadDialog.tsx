@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +27,7 @@ export const ExcelUploadDialog = ({
 }: ExcelUploadDialogProps) => {
   const [open, setOpen] = useState(false);
   const { uploadProductos, loading } = useExcelUpload();
+  const MAX_SIZE_MB = 5;
 
   const downloadTemplate = () => {
     const template = [
@@ -48,18 +50,10 @@ export const ExcelUploadDialog = ({
     toast.success("Plantilla descargada");
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validaciones básicas de seguridad
-    const MAX_SIZE_MB = 5;
-    const allowedTypes = ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
-    const isXlsx = file.name.toLowerCase().endsWith(".xlsx");
-    if (!allowedTypes.includes(file.type) && !isXlsx) {
-      toast.error("Tipo de archivo no permitido. Usa .xlsx");
-      return;
-    }
     if (file.size > MAX_SIZE_MB * 1024 * 1024) {
       toast.error(`Archivo demasiado grande (> ${MAX_SIZE_MB}MB)`);
       return;
@@ -75,6 +69,8 @@ export const ExcelUploadDialog = ({
     } catch (error: any) {
       toast.error(error.message || "Error al procesar archivo");
     }
+    // Reset input
+    event.target.value = "";
   };
 
   return (
@@ -111,7 +107,7 @@ export const ExcelUploadDialog = ({
               />
               <label htmlFor="file-upload-productos">
                 <Button variant="secondary" disabled={loading} asChild>
-                  <span>{loading ? "Procesando..." : "Seleccionar Archivo"}</span>
+                  <span className="cursor-pointer">{loading ? "Procesando..." : "Seleccionar Archivo"}</span>
                 </Button>
               </label>
             </div>

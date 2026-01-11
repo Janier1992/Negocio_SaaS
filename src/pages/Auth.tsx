@@ -1,415 +1,68 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/newClient";
-import { validateEmail, validatePassword, adminCreateUser } from "@/services/users";
-import { resendSignupConfirmationWithRetry } from "@/services/email";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import {
-  checkAuthConnectivity,
-  getSupabaseEnv,
-  formatAuthErrorMessage,
-} from "@/integrations/supabase/health";
-import { createLogger } from "@/lib/logger";
-import { reportError, reportInfo } from "@/services/monitoring";
-
-const SITE_URL =
-  import.meta.env.MODE === "development"
-    ? window.location.origin
-    : import.meta.env.VITE_PUBLIC_SITE_URL || window.location.origin;
 
 export default function Auth() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  const redirectParam = params.get("redirect");
-  const redirectPath = redirectParam && redirectParam.startsWith("/") ? redirectParam : "/";
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [businessName, setBusinessName] = useState("");
-  const [pendingConfirmation, setPendingConfirmation] = useState(false);
-  const [resendLoading, setResendLoading] = useState(false);
-  const [recoveryMode, setRecoveryMode] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [newPassword2, setNewPassword2] = useState("");
-  const [resetLoading, setResetLoading] = useState(false);
-  const envOk = getSupabaseEnv().isConfigured;
-  // Estado de validación ligera para habilitar botón solo cuando hay datos requeridos
-  const isRegisterRequiredFilled = (!isLogin)
-    ? Boolean(businessName?.trim() && fullName?.trim() && email?.trim() && password?.trim())
-    : Boolean(email?.trim() && password?.trim());
-  const emailLooksValid = validateEmail(email || "");
-  const passwordMeetsPolicy = validatePassword(password || "");
 
   useEffect(() => {
     // Check if user is already logged in
     const checkUser = async () => {
-      try {
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession();
-        if (error) {
-          const msg = String(error?.message || "").toLowerCase();
-          const isInvalidRefresh =
-            msg.includes("invalid refresh token") || msg.includes("refresh token not found");
-          if (isInvalidRefresh) {
-            // Limpia estado local para evitar intentos de refresh y ruido en consola
-            try {
-              await supabase.auth.signOut({ scope: "local" });
-            } catch {}
-          }
-        }
-        if (session) {
-          navigate(redirectPath);
-        }
-      } catch (err: any) {
-        const msg = String(err?.message || "").toLowerCase();
-        const isInvalidRefresh =
-          msg.includes("invalid refresh token") || msg.includes("refresh token not found");
-        if (isInvalidRefresh) {
-          try {
-            await supabase.auth.signOut({ scope: "local" });
-          } catch {}
-        }
-        // No interrumpir la UI de login
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        navigate("/");
       }
     };
     checkUser();
-  }, [navigate, redirectPath]);
+  }, [navigate]);
 
-  useEffect(() => {
-    // Health check siempre activo; incluye header apikey en ping para evitar 401
-    const runHealth = async () => {
-      const env = getSupabaseEnv();
-      if (!env.isConfigured) {
-        toast.error("Faltan variables de entorno: VITE_SUPABASE_URL y/o VITE_SUPABASE_ANON_KEY");
-        reportError({ scope: "AuthHealth", message: "Entorno incompleto", extra: env });
-        return;
-      }
-      const health = await checkAuthConnectivity();
-      if (!health.ok) {
-        toast.error(formatAuthErrorMessage(health));
-        reportError({ scope: "AuthHealth", message: "Conectividad Auth fallida", extra: health });
-      } else {
-        reportInfo({ scope: "AuthHealth", message: "Auth OK", extra: health });
-      }
-    };
-    void runHealth();
-  }, []);
-
-  useEffect(() => {
-    // Detectar flujo de recuperación desde el enlace de correo
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setRecoveryMode(true);
-        setIsLogin(true);
-      }
-    });
-    return () => subscription?.unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    const type = params.get("type");
-    if (type === "recovery") {
-      setRecoveryMode(true);
-      setIsLogin(true);
-    }
-  }, [location.search]);
-
-  const log = createLogger("AuthFlow");
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
       if (isLogin) {
-        log.info("Login intento", { email });
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
-        if (error) {
-          reportError({ scope: "Login", message: "Error de login", error, extra: { email } });
-          const msg = String(error.message || "").toLowerCase();
-          if (msg.includes("confirm") || msg.includes("not confirmed")) {
-            toast.error("Debes confirmar tu correo antes de iniciar sesión");
-            setPendingConfirmation(true);
-            return;
-          }
-          throw error;
-        }
+        if (error) throw error;
 
         toast.success("Inicio de sesión exitoso");
-        reportInfo({ scope: "Login", message: "Login correcto", extra: { email } });
-        navigate(redirectPath);
+        navigate("/");
       } else {
-        // Registro: crear cuenta y empresa en un solo paso usando función Edge
-        const trimmedEmail = email.trim().toLowerCase();
-        const trimmedPassword = password.trim();
-        const trimmedFullName = fullName.trim();
-        const trimmedBusinessName = businessName.trim();
-
-        if (!trimmedBusinessName || trimmedBusinessName.length < 2) {
-          throw new Error(
-            "El nombre del negocio es obligatorio y debe tener al menos 2 caracteres",
-          );
-        }
-        if (!trimmedFullName || trimmedFullName.length < 2) {
-          throw new Error("El nombre completo es obligatorio y debe tener al menos 2 caracteres");
-        }
-        if (!validateEmail(trimmedEmail)) {
-          throw new Error("Correo inválido");
-        }
-        if (!validatePassword(trimmedPassword)) {
-          throw new Error(
-            "La contraseña debe tener mínimo 10 caracteres, mayúscula, minúscula, número y símbolo",
-          );
-        }
-
-        try {
-          log.info("Registro via Edge", {
-            email: trimmedEmail,
-            business: trimmedBusinessName,
-          });
-          const res = await adminCreateUser(
-            trimmedEmail,
-            trimmedPassword,
-            trimmedFullName || null,
-            ["admin"],
-            null,
-            trimmedBusinessName || null,
-          );
-          if (res?.ok) {
-            // Iniciar sesión inmediatamente y navegar. Activamos estado de hidratación post‑creación.
-            const { error: loginErr } = await supabase.auth.signInWithPassword({
-              email: trimmedEmail,
-              password: trimmedPassword,
-            });
-            if (loginErr) throw loginErr;
-            toast.success("Cuenta y empresa creadas. Sesión iniciada");
-            reportInfo({ scope: "Registro", message: "Bootstrap OK", extra: { email: trimmedEmail } });
-            navigate(redirectPath, { state: { hydratingEmpresa: true, postCreate: true } });
-            return;
-          }
-        } catch (bootErr: any) {
-          const emsg = String(bootErr?.message || bootErr?.error || "").toLowerCase();
-          const isEdgeDown =
-            emsg.includes("err_failed") ||
-            emsg.includes("failed to fetch") ||
-            emsg.includes("fetch") ||
-            emsg.includes("network");
-          if (isEdgeDown) {
-            toast.info(
-              "No se pudo conectar con la función de registro (Edge). Usaremos el registro estándar.",
-            );
-            reportError({ scope: "Registro", message: "Edge no disponible", error: bootErr });
-          }
-          // Fallback a signUp estándar si la función no está disponible
-          log.info("Fallback a signUp estándar", { email: trimmedEmail });
-          const { data, error } = await supabase.auth.signUp({
-            email: trimmedEmail,
-            password: trimmedPassword,
-            options: {
-              emailRedirectTo: `${SITE_URL}/auth`,
-              data: {
-                full_name: trimmedFullName,
-                business_name: trimmedBusinessName,
-              },
-            },
-          });
-          if (error) throw error;
-          if (data?.session) {
-            // Si la sesión está activa, intentar crear empresa vía RPC/Edge
-            try {
-              const svc = await import("@/services/company");
-              try {
-                await svc.bootstrapEmpresaRpc({ nombre: trimmedBusinessName, descripcion: null });
-              } catch (e: any) {
-                const msg = String(e?.message || "").toLowerCase();
-                const isSchemaCache = msg.includes("schema cache") || e?.code === "PGRST205";
-                if (isSchemaCache) {
-                  await svc.bootstrapEmpresaEdge({
-                    nombre: trimmedBusinessName,
-                    descripcion: null,
-                  });
-                } else {
-                  throw e;
-                }
-              }
-              toast.success("Cuenta y empresa creadas");
-              reportInfo({ scope: "Registro", message: "SignUp + Empresa OK", extra: { email: trimmedEmail } });
-              navigate(redirectPath, { state: { hydratingEmpresa: true, postCreate: true } });
-            } catch (e: any) {
-              toast.success("Cuenta creada exitosamente");
-              reportInfo({ scope: "Registro", message: "SignUp OK (sin empresa)", extra: { email: trimmedEmail } });
-              navigate(redirectPath);
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/`,
+            data: {
+              full_name: fullName,
             }
-          } else {
-            // Enviar confirmación con reintentos para mejorar confiabilidad
-            const resend = await resendSignupConfirmationWithRetry(trimmedEmail, 3, 600);
-            if (resend.ok) {
-              toast.success("Registro iniciado. Hemos reenviado el correo de confirmación.");
-              reportInfo({ scope: "Registro", message: "Confirmación re‑enviada", extra: { email: trimmedEmail } });
-            } else {
-              const low = String(resend.error || "").toLowerCase();
-              if (/redirect.*(invalid|not allowed|accepted)/i.test(low)) {
-                toast.error(
-                  "Dominio de redirección no permitido. Añade http://localhost:8080 en Authentication → URL Configuration → Additional Redirect URLs.",
-                );
-              } else if (/smtp|provider|unauthorized|forbidden/i.test(low)) {
-                toast.error(
-                  "Servicio de correo no configurado o sin permisos en Supabase. Revisa SMTP/Proveedor en Authentication → Email.",
-                );
-              } else {
-                toast.info(
-                  "Registro iniciado. Revisa tu correo para confirmar la cuenta (puede tardar unos minutos).",
-                );
-              }
-              reportError({ scope: "Registro", message: "Error reenviando confirmación", error: resend.error });
-            }
-            setIsLogin(true);
-            setPendingConfirmation(true);
           }
-        }
+        });
+
+        if (error) throw error;
+
+        toast.success("Cuenta creada exitosamente");
+        navigate("/");
       }
     } catch (error: any) {
-      reportError({ scope: "AuthFlow", message: "Excepción en handleAuth", error });
-      const msg = String(error?.message || "");
-      const low = msg.toLowerCase();
-      if (low.includes("database error saving new user")) {
-        // Intentar flujo de bootstrap vía función admin-create-user
-        try {
-          const res = await adminCreateUser(
-            email.trim().toLowerCase(),
-            password.trim(),
-            fullName.trim() || null,
-            ["admin"],
-            null,
-            businessName.trim() || null,
-          );
-          if (res?.ok) {
-            // Iniciar sesión inmediatamente
-            const { error: loginErr } = await supabase.auth.signInWithPassword({
-              email: email.trim().toLowerCase(),
-              password: password.trim(),
-            });
-            if (loginErr) throw loginErr;
-            toast.success("Cuenta creada exitosamente (bootstrap) y sesión iniciada");
-            navigate(redirectPath);
-            return;
-          }
-        } catch (bootErr: any) {
-          const bmsg = String(bootErr?.message || bootErr?.error || "");
-          reportError({ scope: "Registro", message: "Bootstrap fallido", error: bootErr });
-          toast.error(
-            bmsg ||
-              "No se pudo crear la cuenta. Verifica que el correo no exista y que el dominio de redirección esté permitido en Supabase (añade http://localhost:8080 en Authentication → URL Configuration).",
-          );
-        }
-      } else if (/redirect.*(invalid|not allowed|accepted)/i.test(msg)) {
-        toast.error(
-          "Dominio de redirección no permitido en Supabase. Añade http://localhost:8080 en Authentication → URL Configuration → Additional Redirect URLs.",
-        );
-      } else if (/already|exist/i.test(low)) {
-        toast.error("El correo ya está registrado. Prueba con otro correo o inicia sesión.");
-      } else if (/network|failed to fetch|err_failed/i.test(low)) {
-        const env = getSupabaseEnv();
-        const hint = env.isConfigured
-          ? "Revisa conectividad o CSP"
-          : "Faltan VITE_SUPABASE_URL/ANON_KEY";
-        toast.error(`No se pudo conectar al servicio de autenticación. ${hint}.`);
-      } else {
-        toast.error(msg || "Ocurrió un error");
-      }
+      toast.error(error.message || "Ocurrió un error");
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleResend = async () => {
-    if (!email) {
-      toast.error("Ingresa tu correo para reenviar la confirmación");
-      return;
-    }
-    setResendLoading(true);
-    try {
-      const resend = await resendSignupConfirmationWithRetry(email, 3, 600);
-      if (resend.ok) {
-        toast.success("Correo de confirmación reenviado");
-      } else {
-        const msg = String(resend.error || "");
-        const friendly = /redirect.*(invalid|not allowed|accepted)/i.test(msg)
-          ? "Dominio de redirección no permitido. Añade http://localhost:8080 en Authentication → URL Configuration."
-          : /smtp|provider|unauthorized|forbidden/i.test(msg)
-            ? "Servicio de correo no configurado o sin permisos en Supabase. Revisa SMTP/Proveedor en Authentication → Email."
-            : msg || "No se pudo reenviar el correo";
-        toast.error(friendly);
-      }
-    } catch (err: any) {
-      toast.error(err.message || "No se pudo reenviar el correo");
-    } finally {
-      setResendLoading(false);
-    }
-  };
-
-  const handleResetRequest = async () => {
-    if (!validateEmail(email)) {
-      toast.error("Ingresa un correo válido para recuperar contraseña");
-      return;
-    }
-    setResetLoading(true);
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth?redirect=${redirectPath}`,
-      });
-      if (error) throw error;
-      toast.success("Te enviamos un enlace para recuperar tu contraseña");
-    } catch (err: any) {
-      const msg = String(err?.message || "");
-      const friendly = /redirect.*invalid/i.test(msg)
-        ? "URL de redirección no permitida. Añade http://localhost:8080 en Authentication → URL Configuration."
-        : msg || "No se pudo iniciar la recuperación";
-      toast.error(friendly);
-    } finally {
-      setResetLoading(false);
-    }
-  };
-
-  const handleUpdatePassword = async () => {
-    if (!validatePassword(newPassword)) {
-      toast.error(
-        "La nueva contraseña debe tener mínimo 10 caracteres, mayúscula, minúscula, número y símbolo",
-      );
-      return;
-    }
-    if (newPassword !== newPassword2) {
-      toast.error("Las contraseñas no coinciden");
-      return;
-    }
-    setResetLoading(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
-      toast.success("Contraseña actualizada. Ahora puedes iniciar sesión");
-      setRecoveryMode(false);
-      setIsLogin(true);
-      setNewPassword("");
-      setNewPassword2("");
-    } catch (err: any) {
-      toast.error(err?.message || "No se pudo actualizar la contraseña");
-    } finally {
-      setResetLoading(false);
     }
   };
 
@@ -423,36 +76,24 @@ export default function Auth() {
           <CardDescription className="text-center">
             {isLogin
               ? "Ingresa tus credenciales para acceder al sistema"
-              : "Completa el formulario para crear tu cuenta"}
+              : "Completa el formulario para crear tu cuenta"
+            }
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAuth} className="space-y-4">
             {!isLogin && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="businessName">Nombre del negocio</Label>
-                  <Input
-                    id="businessName"
-                    type="text"
-                    placeholder="Ej. Ferretería La Esquina"
-                    value={businessName}
-                    onChange={(e) => setBusinessName(e.target.value)}
-                    required={!isLogin}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">Nombre Completo</Label>
-                  <Input
-                    id="fullName"
-                    type="text"
-                    placeholder="Juan Pérez"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required={!isLogin}
-                  />
-                </div>
-              </>
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Nombre Completo</Label>
+                <Input
+                  id="fullName"
+                  type="text"
+                  placeholder="Juan Pérez"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required={!isLogin}
+                />
+              </div>
             )}
 
             <div className="space-y-2">
@@ -476,133 +117,54 @@ export default function Auth() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={8}
+                minLength={6}
               />
-              {!isLogin && password && !passwordMeetsPolicy && (
-                <p className="text-xs text-muted-foreground">
-                  La contraseña debe tener mínimo 10 caracteres, mayúscula, minúscula, número y símbolo.
-                </p>
-              )}
             </div>
 
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading || !isRegisterRequiredFilled}
+              disabled={isLoading}
             >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Procesando...
                 </>
-              ) : isLogin ? (
-                "Iniciar Sesión"
               ) : (
-                "Crear Cuenta"
+                isLogin ? "Iniciar Sesión" : "Crear Cuenta"
               )}
             </Button>
-            {!envOk && (
-              <div className="mt-2 text-xs text-amber-600">
-                Faltan variables de entorno de Supabase (URL/Anon Key). El registro fallará hasta
-                configurarlas en el despliegue.
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
               </div>
-            )}
-            {!isLogin && email && !emailLooksValid && (
-              <div className="text-xs text-red-500">Ingresa un correo válido.</div>
-            )}
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  O continuar con
+                </span>
+              </div>
+            </div>
+
+            <Button variant="outline" type="button" className="w-full" onClick={() => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })}>
+              <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
+                <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
+              </svg>
+              Google
+            </Button>
           </form>
 
-          {isLogin && !recoveryMode && (
-            <div className="mt-3 text-center text-sm">
-              <button
-                type="button"
-                onClick={handleResetRequest}
-                className="text-primary hover:underline"
-                disabled={resetLoading || !validateEmail(email || "")}
-                title={
-                  !email
-                    ? "Ingresa tu correo arriba para recuperar"
-                    : "Enviar enlace de recuperación"
-                }
-              >
-                {resetLoading ? "Enviando enlace…" : "¿Olvidaste tu contraseña? Recuperar"}
-              </button>
-            </div>
-          )}
-
-          {recoveryMode && (
-            <div className="mt-4">
-              <div className="space-y-2">
-                <Label htmlFor="newPassword">Nueva contraseña</Label>
-                <Input
-                  id="newPassword"
-                  type="password"
-                  placeholder="••••••••"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  minLength={8}
-                />
-              </div>
-              <div className="space-y-2 mt-2">
-                <Label htmlFor="newPassword2">Confirmar contraseña</Label>
-                <Input
-                  id="newPassword2"
-                  type="password"
-                  placeholder="••••••••"
-                  value={newPassword2}
-                  onChange={(e) => setNewPassword2(e.target.value)}
-                  minLength={8}
-                />
-              </div>
-              <div className="flex gap-2 mt-3">
-                <Button onClick={handleUpdatePassword} disabled={resetLoading} className="flex-1">
-                  {resetLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Actualizando…
-                    </>
-                  ) : (
-                    "Actualizar contraseña"
-                  )}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setRecoveryMode(false)}
-                  disabled={resetLoading}
-                >
-                  Cancelar
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {pendingConfirmation && (
-            <div className="mt-4 text-center text-sm">
-              <p className="text-muted-foreground">
-                Debes confirmar tu correo para acceder. Si no lo recibiste, puedes reenviarlo.
-              </p>
-              <Button
-                variant="outline"
-                className="mt-2"
-                onClick={handleResend}
-                disabled={resendLoading || !email}
-              >
-                {resendLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Enviando...
-                  </>
-                ) : (
-                  "Reenviar correo de confirmación"
-                )}
-              </Button>
-            </div>
-          )}
           <div className="mt-4 text-center text-sm">
             <button
               type="button"
               onClick={() => setIsLogin(!isLogin)}
               className="text-primary hover:underline"
             >
-              {isLogin ? "¿No tienes cuenta? Regístrate" : "¿Ya tienes cuenta? Inicia sesión"}
+              {isLogin
+                ? "¿No tienes cuenta? Regístrate"
+                : "¿Ya tienes cuenta? Inicia sesión"
+              }
             </button>
           </div>
         </CardContent>

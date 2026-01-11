@@ -2,16 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Design system: colores (HSL), sombras y transiciones */
 
 @layer base {
-  html {
-    /* Tipografía fluida: escala entre 14px y 16px según viewport */
-    font-size: clamp(14px, 1.1vw, 16px);
-  }
-
   :root {
     /* Core backgrounds */
     --background: 220 17% 97%;
@@ -131,50 +124,17 @@ All colors MUST be HSL.
     --sidebar-border: 217 33% 17%;
     --sidebar-ring: 217 91% 60%;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
 
   body {
-    /* Evita desplazamiento horizontal global y asegura fondo/foreground */
-    @apply bg-background text-foreground overflow-x-hidden;
-  }
-
-  img,
-  svg,
-  video,
-  canvas {
-    max-width: 100%;
-    height: auto;
+    @apply bg-background text-foreground;
   }
 }
 
-@layer components {
-  /* Contenedor principal responsivo para páginas */
-  .app-container {
-    @apply w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8;
-  }
-
-  /* Secciones con espaciado vertical coherente */
-  .page-section {
-    @apply w-full py-4 sm:py-6;
-  }
-}
-
-/* Utilidades específicas para interacción táctil y contención de scroll */
 @layer utilities {
-  .touch-pan {
-    touch-action: pan-x pan-y;
-    -ms-touch-action: pan-x pan-y;
-  }
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }

@@ -5,11 +5,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -27,11 +25,8 @@ interface VentaDialogProps {
   onVentaAdded: () => void;
 }
 
-interface ProductoVenta {
-  producto_id: string;
   cantidad: number;
   precio_unitario: number;
-}
 
 export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
   const { empresaId } = useUserProfile();
@@ -89,60 +84,10 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
     }
 
     setItems(newItems);
-  };
 
   const getTotal = () => {
     return items.reduce((sum, item) => sum + item.cantidad * item.precio_unitario, 0);
   };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!empresaId) {
-      toast.error("Error: No se pudo obtener la empresa");
-      return;
-    }
-
-    if (items.length === 0) {
-      setErrors({ items: "Debe agregar al menos un producto" });
-      toast.error("Debe agregar al menos un producto");
-      return;
-    }
-
-    // Validaciones
-    const newErrors: Record<string, string> = {};
-    if (!metodoPago) newErrors.metodo_pago = "Seleccione un método de pago";
-
-    // Email obligatorio con formato
-    const emailTrim = clienteEmail.trim();
-    if (!emailTrim) {
-      newErrors.cliente_email = "Correo del cliente es obligatorio";
-    } else if (!validateEmail(emailTrim)) {
-      newErrors.cliente_email = "Formato de correo inválido";
-    }
-
-    // Dirección obligatoria con longitud mínima
-    const dirTrim = clienteDireccion.trim();
-    if (!dirTrim) {
-      newErrors.cliente_direccion = "Dirección del cliente es obligatoria";
-    } else if (dirTrim.length < 8) {
-      newErrors.cliente_direccion = "Dirección demasiado corta (mínimo 8 caracteres)";
-    }
-
-    // Validar cada item
-    for (const item of items) {
-      if (!item.producto_id) newErrors.items = "Seleccione producto en cada línea";
-      if (!item.cantidad || item.cantidad < 1) newErrors.items = "La cantidad debe ser al menos 1";
-      if (!item.precio_unitario || item.precio_unitario <= 0)
-        newErrors.items = "Precio unitario inválido";
-    }
-
-    // Validar stock agregado por producto
-    const agregados: Record<string, number> = {};
-    for (const item of items) {
-      if (!item.producto_id) continue;
-      agregados[item.producto_id] = (agregados[item.producto_id] || 0) + item.cantidad;
-    }
-    for (const [prodId, totalCant] of Object.entries(agregados)) {
       const prod = productos.find((p) => p.id === prodId);
       if (prod && totalCant > prod.stock) {
         newErrors.stock = `Cantidad (${totalCant}) excede stock disponible para ${prod.nombre} (${prod.stock})`;
@@ -155,8 +100,6 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
       toast.error("Corrige los campos marcados");
       return;
     } else {
-      setErrors({});
-    }
 
     setLoading(true);
     try {
@@ -193,82 +136,10 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
 
       const { error: detallesError } = await supabase.from("ventas_detalle").insert(detalles);
 
-      if (detallesError) throw detallesError;
-
-      // Actualizar stock de productos
-      for (const item of items) {
-        const producto = productos.find((p) => p.id === item.producto_id);
-        if (producto) {
-          const { error: stockError } = await supabase
-            .from("productos")
-            .update({ stock: producto.stock - item.cantidad })
-            .eq("id", item.producto_id);
-
-          if (stockError) throw stockError;
-        }
-      }
-
-      // Upsert automático del cliente en módulo Clientes
-      try {
-        const nombreCliente = (cliente || "").trim();
-        if (nombreCliente) {
-          const nowIso = venta.created_at
-            ? new Date(venta.created_at).toISOString()
-            : new Date().toISOString();
-          const { data: existing } = await supabase
-            .from("clientes")
-            .select("id, total_comprado, compras_count, fecha_primera_compra")
-            .eq("empresa_id", empresaId)
-            .eq("nombre", nombreCliente)
-            .maybeSingle();
-
-          if (!existing) {
-            await supabase.from("clientes").insert({
-              empresa_id: empresaId,
-              nombre: nombreCliente,
-              fecha_primera_compra: nowIso,
-              fecha_ultima_compra: nowIso,
-              total_comprado: Number(venta.total || 0),
-              compras_count: 1,
-            });
-          } else {
-            await supabase
-              .from("clientes")
-              .update({
-                fecha_ultima_compra: nowIso,
-                total_comprado: Number(existing.total_comprado || 0) + Number(venta.total || 0),
-                compras_count: Number(existing.compras_count || 0) + 1,
-              })
-              .eq("id", existing.id);
-          }
-        }
-      } catch (clErr) {
-        console.warn("[Clientes] No se pudo upsert el cliente tras venta", clErr);
-      }
-
-      // Envío de confirmación por correo con reintentos (no bloquea venta)
-      try {
-        const itemsResumen = items.map((i) => {
-          const p = productos.find((pp) => pp.id === i.producto_id);
-          return {
-            nombre: p?.nombre || i.producto_id,
-            cantidad: i.cantidad,
-            precio: i.precio_unitario,
-          };
-        });
-        const res = await sendSaleConfirmationWithRetry(
-          {
-            to: emailTrim,
-            clienteNombre: cliente || "Cliente",
-            direccion: dirTrim,
-            ventaId: venta.id,
             empresaId,
             total: getTotal(),
-            metodoPago,
-            items: itemsResumen,
           },
           3,
-          600,
         );
         if (res.ok) {
           try {
@@ -313,33 +184,6 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
         <DialogHeader>
           <DialogTitle>Nueva Venta</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="cliente">Cliente (Opcional)</Label>
-              <Input
-                id="cliente"
-                value={cliente}
-                onChange={(e) => setCliente(e.target.value)}
-                placeholder="Nombre del cliente"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="metodo_pago">Método de Pago</Label>
-              <Select value={metodoPago} onValueChange={setMetodoPago} required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar método" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Efectivo">Efectivo</SelectItem>
-                  <SelectItem value="Tarjeta">Tarjeta</SelectItem>
-                  <SelectItem value="Transferencia">Transferencia</SelectItem>
-                </SelectContent>
-              </Select>
-              {errors.metodo_pago && (
-                <p className="text-sm text-destructive mt-1">{errors.metodo_pago}</p>
-              )}
-            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -402,9 +246,6 @@ export const VentaDialog = ({ onVentaAdded }: VentaDialogProps) => {
                     </Select>
                   </div>
                   <div className="w-24">
-                    <Input
-                      type="number"
-                      min="1"
                       value={item.cantidad}
                       onChange={(e) => updateItem(index, "cantidad", parseInt(e.target.value))}
                       placeholder="Cant."

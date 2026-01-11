@@ -1,8 +1,0 @@
-node_modules
-dist
-dist-ssr
-.vercel
-coverage
-*.log
-docs/*.json
-public/sw.js

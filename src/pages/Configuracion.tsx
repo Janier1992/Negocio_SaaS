@@ -1,318 +1,187 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { supabase } from "@/integrations/supabase/newClient";
-import { useUserProfile } from "@/hooks/useUserProfile";
-import { toast } from "sonner";
-import { UserRolePanel } from "@/components/configuracion/UserRolePanel";
-import { UserManagementPanel } from "@/components/configuracion/UserManagementPanel";
-import { bootstrapEmpresaRpc, bootstrapEmpresaEdge, verifyEmpresaExists } from "@/services/company";
-import { RequirePermission } from "@/components/auth/RequirePermission";
 
-interface Empresa {
-  id: string;
-  nombre: string;
-  descripcion: string | null;
+import { useState, useEffect } from "react";
+import {
+    User,
+    Building2,
+    Bell,
+    Shield,
+    Loader2,
+    Save
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+type ConfigTab = "profile" | "company" | "preferences" | "security";
+
+export default function Configuracion() {
+    const [activeTab, setActiveTab] = useState<ConfigTab>("company");
+    const { empresaId, userProfile } = useUserProfile();
+    const queryClient = useQueryClient();
+
+    // 1. Fetch Real Business Data
+    const { data: companyData, isLoading: loadingCompany } = useQuery({
+        queryKey: ["business_config", empresaId],
+        queryFn: async () => {
+            if (!empresaId) return null;
+            const { data, error } = await supabase
+                .from("businesses")
+                .select("*")
+                .eq("id", empresaId)
+                .single();
+            if (error) throw error;
+            return data;
+        },
+        enabled: !!empresaId
+    });
+
+    // 2. Form States initialized with real data
+    const [companyForm, setCompanyForm] = useState({
+        name: "",
+        slug: "",
+    });
+
+    useEffect(() => {
+        if (companyData) {
+            setCompanyForm({
+                name: companyData.name || "",
+                slug: companyData.slug || "",
+            });
+        }
+    }, [companyData]);
+
+    const updateCompanyMutation = useMutation({
+        mutationFn: async (updatedData: any) => {
+            const { error } = await supabase
+                .from("businesses")
+                .update(updatedData)
+                .eq("id", empresaId);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            toast.success("Empresa actualizada correctamente");
+            queryClient.invalidateQueries({ queryKey: ["business_config"] });
+        },
+        onError: (err: any) => {
+            toast.error("Error al actualizar: " + err.message);
+        }
+    });
+
+    const handleSaveCompany = () => {
+        updateCompanyMutation.mutate(companyForm);
+    };
+
+    const tabs = [
+        { id: "company", label: "Empresa", icon: Building2 },
+        { id: "profile", label: "Mi Perfil", icon: User },
+    ];
+
+    return (
+        <div className="flex flex-col gap-8 p-8 min-h-screen bg-background-light dark:bg-background-dark font-sans animate-in fade-in duration-500">
+            {/* Header */}
+            <div className="flex flex-col">
+                <h1 className="text-3xl font-black text-[#0d141b] dark:text-white tracking-tight">Configuración</h1>
+                <p className="text-[#4c739a] dark:text-[#8babc8] mt-1">Administra los ajustes de tu cuenta y negocio.</p>
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-8 items-start">
+                {/* Sidebar Tabs */}
+                <div className="w-full md:w-64 flex flex-col gap-2 shrink-0">
+                    {tabs.map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as ConfigTab)}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${activeTab === tab.id
+                                ? "bg-white dark:bg-[#1a2632] text-primary shadow-sm border border-[#e7edf3] dark:border-[#2a3b4d]"
+                                : "text-[#4c739a] dark:text-[#8babc8] hover:bg-gray-100 dark:hover:bg-[#23303e]"
+                                }`}
+                        >
+                            <tab.icon className={`size-5 ${activeTab === tab.id ? "text-primary" : "opacity-70"}`} />
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Content Area */}
+                <div className="flex-1 w-full bg-white dark:bg-[#1a2632] rounded-2xl border border-[#e7edf3] dark:border-[#2a3b4d] shadow-sm p-8 min-h-[500px]">
+
+                    {/* COMPANY SETTINGS */}
+                    {activeTab === "company" && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                            <div className="pb-4 border-b border-[#e7edf3] dark:border-[#2a3b4d]">
+                                <h2 className="text-xl font-bold text-[#0d141b] dark:text-white">Información de la Empresa</h2>
+                                <p className="text-sm text-[#4c739a]">Estos datos identifican a tu negocio en el sistema.</p>
+                            </div>
+
+                            {loadingCompany ? (
+                                <div className="flex justify-center py-10"><Loader2 className="animate-spin text-primary" /></div>
+                            ) : (
+                                <div className="grid grid-cols-1 gap-6 max-w-lg">
+                                    <div className="space-y-2">
+                                        <Label>Nombre del Negocio</Label>
+                                        <Input
+                                            value={companyForm.name}
+                                            onChange={e => setCompanyForm({ ...companyForm, name: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Slug (Identificador URL)</Label>
+                                        <Input
+                                            value={companyForm.slug}
+                                            disabled
+                                            className="bg-gray-100 text-gray-500 cursor-not-allowed"
+                                        />
+                                        <p className="text-xs text-muted-foreground">El slug no se puede cambiar por seguridad.</p>
+                                    </div>
+
+                                    <div className="pt-4">
+                                        <Button
+                                            onClick={handleSaveCompany}
+                                            disabled={updateCompanyMutation.isPending}
+                                            className="bg-primary hover:bg-blue-600 w-full md:w-auto"
+                                        >
+                                            {updateCompanyMutation.isPending ? <Loader2 className="size-4 animate-spin mr-2" /> : <Save className="size-4 mr-2" />}
+                                            Guardar Cambios
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* PROFILE SETTINGS */}
+                    {activeTab === "profile" && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                            <div className="pb-4 border-b border-[#e7edf3] dark:border-[#2a3b4d]">
+                                <h2 className="text-xl font-bold text-[#0d141b] dark:text-white">Mi Perfil</h2>
+                                <p className="text-sm text-[#4c739a]">Datos de tu cuenta de usuario.</p>
+                            </div>
+
+                            <div className="bg-gray-50 dark:bg-[#1f2d3b] p-6 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center gap-4 mb-6">
+                                    <div className="size-16 rounded-full bg-primary/20 flex items-center justify-center text-primary text-2xl font-bold">
+                                        {userProfile?.full_name?.charAt(0) || "U"}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-lg">{userProfile?.full_name}</h3>
+                                        <p className="text-sm text-gray-500">{userProfile?.email}</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <Button variant="outline" onClick={() => supabase.auth.signOut()}>
+                                        Cerrar Sesión
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 }
 
-const Configuracion = () => {
-  const navigate = useNavigate();
-  const { empresaId, loading: profileLoading, profile, refetch, awaitEmpresaId } = useUserProfile();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [empresa, setEmpresa] = useState<Empresa | null>(null);
-  const [nombre, setNombre] = useState("");
-  const [descripcion, setDescripcion] = useState("");
-  const [createNombre, setCreateNombre] = useState("");
-  const [createDesc, setCreateDesc] = useState<string | "" | null>("");
-  const [creating, setCreating] = useState(false);
-  const [transitioning, setTransitioning] = useState(false);
-
-  const fetchEmpresa = async () => {
-    if (!empresaId) return;
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("empresas")
-        .select("id, nombre, descripcion")
-        .eq("id", empresaId)
-        .maybeSingle();
-      if (error) throw error;
-      if (data) {
-        setEmpresa(data as Empresa);
-        setNombre((data as Empresa).nombre || "");
-        setDescripcion(((data as Empresa).descripcion as string) || "");
-      }
-    } catch (err: any) {
-      const msg = String(err?.message || "").toLowerCase();
-      const isAbort = msg.includes("abort") || /err_aborted/i.test(msg);
-      const isNetwork = /failed to fetch/i.test(msg);
-      // Evitar ruido por abortos de navegación o fallos transitorios de red
-      if (isAbort) {
-        // Silencioso en abortos
-      } else if (isNetwork) {
-        toast.error("Sin conexión con el servidor. Reintentando más tarde…");
-      } else {
-        toast.error("Error al cargar datos de la empresa");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (empresaId) {
-      fetchEmpresa();
-    } else if (!profileLoading) {
-      // Permitir acceso al módulo para crear empresa cuando no hay empresaId
-      setLoading(false);
-    }
-  }, [empresaId, profileLoading]);
-
-  const saveEmpresa = async () => {
-    if (!empresaId) return;
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from("empresas")
-        .update({ nombre, descripcion })
-        .eq("id", empresaId);
-      if (error) throw error;
-      toast.success("Configuración guardada");
-      await fetchEmpresa();
-    } catch (err: any) {
-      console.error(err);
-      toast.error("No se pudo guardar la configuración");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (profileLoading || loading) {
-    return <div className="flex items-center justify-center h-96">Cargando...</div>;
-  }
-
-  const handleCreateEmpresa = async () => {
-    setCreating(true);
-    try {
-      const nombreVal = String(createNombre || "").trim();
-      const descVal = (createDesc === "" ? null : createDesc) as string | null;
-      if (!nombreVal || nombreVal.length < 2) {
-        toast.error("El nombre de la empresa es requerido");
-        return;
-      }
-
-      // Intentar vía RPC y fallback a función Edge si hay cache desactualizada
-      let createdEmpresaId: string | null = null;
-      try {
-        createdEmpresaId = await bootstrapEmpresaRpc({ nombre: nombreVal, descripcion: descVal });
-      } catch (bootErr: any) {
-        const msg = String(bootErr?.message || "").toLowerCase();
-        const isSchemaCache = msg.includes("schema cache") || bootErr?.code === "PGRST205";
-        if (isSchemaCache) {
-          createdEmpresaId = await bootstrapEmpresaEdge({
-            nombre: nombreVal,
-            descripcion: descVal,
-          });
-        } else {
-          throw bootErr;
-        }
-      }
-
-      toast.success("Empresa creada correctamente. Se asignó el rol admin.");
-      setCreateNombre("");
-      setCreateDesc("");
-      await refetch();
-      if (empresaId) {
-        await fetchEmpresa();
-      }
-      // Confirmación primaria y fallback con timeout
-      const primaryCheck = (async () => {
-        const hasEmpresaId = await awaitEmpresaId({ retries: 20, delayMs: 300 });
-        if (!hasEmpresaId) return false;
-        const savedOk = createdEmpresaId
-          ? await verifyEmpresaExists(createdEmpresaId)
-          : hasEmpresaId;
-        return !!savedOk;
-      })();
-      const timeoutMs = 3500;
-      let timeoutId: any;
-      const timeoutPromise = new Promise<boolean>((resolve) => {
-        timeoutId = setTimeout(() => resolve(false), timeoutMs);
-      });
-      const ok = await Promise.race([primaryCheck, timeoutPromise]);
-      if (ok) {
-        clearTimeout(timeoutId);
-        setTransitioning(true);
-        navigate("/", { replace: true, state: { hydratingEmpresa: true, postCreate: true } });
-      } else {
-        navigate("/", { replace: true, state: { hydratingEmpresa: true, postCreate: true } });
-        primaryCheck
-          .then((finalOk) => {
-            if (!finalOk) {
-              toast.error("No se pudo confirmar la creación de la empresa. Intenta nuevamente.");
-            }
-          })
-          .catch(() => {
-            toast.error("Error al confirmar la creación de la empresa.");
-          })
-          .finally(() => clearTimeout(timeoutId));
-      }
-    } catch (err: any) {
-      const msg = String(err?.message || "");
-      const friendly = /policy|rls|permission/i.test(msg)
-        ? "Tu sesión no tiene permisos para crear empresa"
-        : /Failed to fetch/i.test(msg)
-          ? "Sin conexión con el servidor"
-          : /schema cache/i.test(msg)
-            ? "El esquema aún no está sincronizado. Refresca y reintenta en unos segundos"
-            : msg || "No se pudo crear la empresa";
-      toast.error(friendly);
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  return (
-    <RequirePermission permission="config_view">
-      <div className="space-y-6 animate-fade-in">
-        <div>
-          <h2 className="text-3xl font-bold text-foreground">Configuración</h2>
-          <p className="text-muted-foreground mt-1">
-            Panel de opciones de configuración del sistema
-          </p>
-        </div>
-        {!empresaId ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Crear empresa</CardTitle>
-              <CardDescription>Configura los datos iniciales para tu empresa</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Permitir crear empresa aunque el usuario aún no tenga rol asignado.
-                El RPC bootstrap_empresa_for_user es SECURITY DEFINER y asigna admin.
-                Esto evita el bloqueo inicial por falta de empresa/rol. */}
-              <>
-                <div className="space-y-2">
-                  <label htmlFor="c_nombre" className="text-sm font-medium text-foreground">
-                    Nombre de la empresa
-                  </label>
-                  <Input
-                    id="c_nombre"
-                    value={createNombre}
-                    onChange={(e) => setCreateNombre(e.target.value)}
-                    placeholder="Mi Empresa"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="c_desc" className="text-sm font-medium text-foreground">
-                    Descripción (opcional)
-                  </label>
-                  <Input
-                    id="c_desc"
-                    value={createDesc || ""}
-                    onChange={(e) => setCreateDesc(e.target.value)}
-                    placeholder="Breve descripción"
-                  />
-                </div>
-                <div className="flex justify-end">
-                  <Button onClick={handleCreateEmpresa} disabled={creating}>
-                    {creating ? "Creando..." : "Crear empresa"}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Al crear la empresa, tu perfil se vincula y se te asigna rol administrador
-                  automáticamente.
-                </p>
-              </>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>General</CardTitle>
-              <CardDescription>Información básica de la empresa</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="nombre" className="text-sm font-medium text-foreground">
-                  Nombre de la empresa
-                </label>
-                <Input id="nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="descripcion" className="text-sm font-medium text-foreground">
-                  Descripción
-                </label>
-                <textarea
-                  id="descripcion"
-                  className="w-full rounded-md border border-input bg-background p-2 text-sm"
-                  rows={3}
-                  value={descripcion}
-                  onChange={(e) => setDescripcion(e.target.value)}
-                />
-              </div>
-              <div className="flex justify-end">
-                <Button onClick={saveEmpresa} disabled={saving}>
-                  {saving ? "Guardando..." : "Guardar cambios"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <UserRolePanel />
-
-        <RequirePermission permission="manage_users">
-          <UserManagementPanel />
-        </RequirePermission>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Notificaciones</CardTitle>
-            <CardDescription>Preferencias de alertas y avisos</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Configura cómo recibir notificaciones sobre stock bajo, movimientos y otros eventos.
-            </p>
-            <Separator />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Alertas de Stock Bajo</label>
-                <p className="text-sm text-muted-foreground">
-                  Se muestran en el módulo de Alertas.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  Alertas de Stock Crítico
-                </label>
-                <p className="text-sm text-muted-foreground">
-                  Se muestran en el módulo de Alertas.
-                </p>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Próximamente: canales de notificación (email, push).
-            </p>
-          </CardContent>
-        </Card>
-
-        {transitioning && (
-          <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-center justify-center">
-            <div className="rounded-lg bg-background border p-6 shadow-xl text-center">
-              <p className="text-sm text-muted-foreground">Empresa creada correctamente</p>
-              <p className="mt-2 font-medium">Redirigiendo a los módulos…</p>
-            </div>
-          </div>
-        )}
-      </div>
-    </RequirePermission>
-  );
-};
-
-export default Configuracion;
