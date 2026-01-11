@@ -1,7 +1,7 @@
 // OpenRouter Configuration
 // OpenRouter Configuration
 // HARDCODED TEMP FIX FOR CACHE ISSUES
-const API_KEY = "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";
+const API_KEY = "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";
 // const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODEL = "google/gemini-flash-1.5";
@@ -11,6 +11,7 @@ export const chatWithAI = async (message: string, context?: string) => {
         console.warn("OpenRouter API Key is missing");
         return "Error: No se ha configurado la API Key de OpenRouter.";
     }
+    console.log("🤖 AI Debug - Using Key:", API_KEY.substring(0, 15) + "...");
 
     try {
         const systemPrompt = `
