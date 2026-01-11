@@ -1,10 +1,7 @@
 // OpenRouter Configuration
-// OpenRouter Configuration
-// HARDCODED TEMP FIX FOR CACHE ISSUES
-const API_KEY = "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";
-// const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
+const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "google/gemini-flash-1.5";
+const MODEL = "mistralai/mistral-7b-instruct:free"; // Using verified working free model
 
 export const chatWithAI = async (message: string, context?: string) => {
     if (!API_KEY) {
@@ -60,7 +57,7 @@ export const chatWithAI = async (message: string, context?: string) => {
 
         if (!content) throw new Error("Empty response from OpenRouter.");
 
-        return `${content} (Model: ${MODEL})`;
+        return content;
 
     } catch (error: any) {
         console.error("AI Service Error:", error);
