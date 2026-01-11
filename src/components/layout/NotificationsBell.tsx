@@ -24,24 +24,22 @@ export function NotificationsBell() {
             // Fetch critical low stock items
             const { data, error } = await supabase
                 .from("products")
-                .select(`
-            id,
-            name,
-            current_stock,
-            min_stock
-        `)
+                .select("*")
                 .eq("business_id", empresaId)
-                .lt("current_stock", 10) // Example threshold or use min_stock comparison logic
-                .order("current_stock", { ascending: true })
+                .lt("stock", 10) // Threshold for notification
+                .order("stock", { ascending: true })
                 .limit(5);
 
-            if (error) throw error;
+            if (error) {
+                console.error("Error fetching low stock:", error);
+                return [];
+            }
 
-            // Filter strictly by low stock logic if needed, but SQL .lt is efficient
-            return data.filter(p => p.current_stock <= p.min_stock).map(item => ({
+            // Filter locally against min_stock if needed or trust the query
+            return (data as any[]).filter(p => p.stock <= (p.stock_minimo || 5)).map(item => ({
                 id: item.id,
-                title: "Stock Crítico",
-                message: `El producto "${item.name}" tiene ${item.current_stock} unidades.`,
+                title: "Stock Bajo",
+                message: `El producto "${item.nombre}" tiene ${item.stock} unidades.`,
                 type: "critical",
                 route: "/inventario"
             }));
