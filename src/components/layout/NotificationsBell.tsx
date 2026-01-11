@@ -21,13 +21,18 @@ export function NotificationsBell() {
         queryFn: async () => {
             if (!empresaId) return [];
 
-            // Fetch critical low stock items
             const { data, error } = await supabase
-                .from("products")
-                .select("*")
+                .from("product_variants")
+                .select(`
+                    id,
+                    stock_level,
+                    products (
+                        name
+                    )
+                `)
                 .eq("business_id", empresaId)
-                .lt("stock", 10) // Threshold for notification
-                .order("stock", { ascending: true })
+                .lt("stock_level", 10) // Threshold for notification
+                .order("stock_level", { ascending: true })
                 .limit(5);
 
             if (error) {
@@ -36,10 +41,10 @@ export function NotificationsBell() {
             }
 
             // Filter locally against min_stock if needed or trust the query
-            return (data as any[]).filter(p => p.stock <= (p.stock_minimo || 5)).map(item => ({
+            return (data as any[]).map(item => ({
                 id: item.id,
                 title: "Stock Bajo",
-                message: `El producto "${item.nombre}" tiene ${item.stock} unidades.`,
+                message: `El producto "${item.products?.name || 'Producto'}" tiene ${item.stock_level} unidades.`,
                 type: "critical",
                 route: "/inventario"
             }));
