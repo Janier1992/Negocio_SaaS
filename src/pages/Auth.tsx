@@ -67,8 +67,8 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4 sm:p-8">
+      <Card className="w-full max-w-[350px] sm:max-w-md shadow-xl border-t-4 border-t-primary">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
             {isLogin ? "Iniciar Sesión" : "Crear Cuenta"}

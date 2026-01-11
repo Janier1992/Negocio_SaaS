@@ -47,19 +47,19 @@ export function CartPanel({ onCheckout, isProcessing }: CartPanelProps) {
                 {/* Customer Form - Compact */}
                 <div className="space-y-2 pt-1">
                     <div className="grid grid-cols-12 gap-2">
-                        <div className="col-span-4 space-y-0.5">
+                        <div className="col-span-12 sm:col-span-4 space-y-0.5">
                             <label className="text-[10px] uppercase font-bold text-muted-foreground">Cédula *</label>
                             <input
-                                className="flex h-7 w-full rounded-md border border-input bg-background px-2 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                className="flex h-8 sm:h-7 w-full rounded-md border border-input bg-background px-2 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                 placeholder="123..."
                                 value={customerData.docId}
                                 onChange={(e) => setCustomerData({ ...customerData, docId: e.target.value })}
                             />
                         </div>
-                        <div className="col-span-8 space-y-0.5">
+                        <div className="col-span-12 sm:col-span-8 space-y-0.5">
                             <label className="text-[10px] uppercase font-bold text-muted-foreground">Nombre *</label>
                             <input
-                                className="flex h-7 w-full rounded-md border border-input bg-background px-2 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                className="flex h-8 sm:h-7 w-full rounded-md border border-input bg-background px-2 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                                 placeholder="Juan Pérez"
                                 value={customerData.name}
                                 onChange={(e) => setCustomerData({ ...customerData, name: e.target.value })}

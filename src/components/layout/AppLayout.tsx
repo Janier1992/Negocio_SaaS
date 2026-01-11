@@ -32,7 +32,7 @@ export const AppLayout = () => {
         <AppSidebar />
         <div className="flex-1 flex flex-col h-full overflow-hidden relative">
           {/* TOP NAVBAR */}
-          <header className="h-16 bg-surface-light dark:bg-surface-dark/90 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 z-10 sticky top-0">
+          <header className="h-14 md:h-16 bg-surface-light dark:bg-surface-dark/90 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 md:px-6 z-10 sticky top-0">
             <div className="flex items-center gap-4">
               {/* <SidebarTrigger className="md:hidden" />  <-- Hidden in favor of Bottom Nav */}
               <SidebarTrigger className="hidden md:flex" />

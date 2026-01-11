@@ -87,11 +87,11 @@ export function ProductCatalog({ onAddToCart }: ProductCatalogProps) {
 
             {/* Product Grid */}
             <div className="flex-1 overflow-y-auto -mx-2 px-2">
-                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 pb-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-4 pb-20 md:pb-4">
                     {filteredProducts.map((product) => (
                         <Card
                             key={product.id}
-                            className="cursor-pointer hover:border-primary transition-all active:scale-95 group overflow-hidden flex flex-col justify-between"
+                            className="cursor-pointer hover:border-primary transition-all active:scale-95 group overflow-hidden flex flex-col justify-between shadow-sm border-slate-200 dark:border-slate-800"
                             onClick={() => onAddToCart(product)}
                         >
                             <CardContent className="p-4 flex flex-col h-full gap-2">
