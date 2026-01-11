@@ -21,7 +21,7 @@ export function MobileBottomNav() {
     const navigate = useNavigate();
 
     const mainNavItems = [
-        { title: "Inicio", url: "/", icon: LayoutDashboard },
+        { title: "Inicio", url: "/dashboard", icon: LayoutDashboard },
         { title: "Productos", url: "/productos", icon: Package },
         { title: "Ventas", url: "/ventas", icon: ShoppingCart },
         { title: "Gastos", url: "/gastos", icon: Receipt },

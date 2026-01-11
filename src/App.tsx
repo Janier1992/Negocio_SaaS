@@ -1,7 +1,7 @@
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import Productos from "./pages/Productos";
@@ -28,7 +28,7 @@ const App = () => (
         <Routes>
           <Route path="/auth" element={<Auth />} />
           <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-            <Route path="/" element={<Productos />} />
+            <Route path="/" element={<Navigate to="/productos" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/productos" element={<Productos />} />
             <Route path="/inventario" element={<Inventario />} />

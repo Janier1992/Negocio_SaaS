@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/sidebar";
 
 const menuItems = [
-  { title: "Inicio", url: "/", icon: LayoutDashboard },
+  { title: "Inicio", url: "/dashboard", icon: LayoutDashboard },
   { title: "Productos", url: "/productos", icon: Package },
   { title: "Ventas", url: "/ventas", icon: ShoppingCart },
   { title: "Inventario", url: "/inventario", icon: Layers },
