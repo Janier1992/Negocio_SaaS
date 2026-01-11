@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
             "http-equiv": "Content-Security-Policy",
             content,
           },
-          injectTo: "head",
+          injectTo: "head" as "head",
         },
       ];
     },
