@@ -1,7 +1,7 @@
 // OpenRouter Configuration
 const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "meta-llama/llama-3-8b-instruct:free";
+const MODEL = "google/gemini-2.0-flash-exp:free";
 
 export const chatWithAI = async (message: string, context?: string) => {
     if (!API_KEY) {
@@ -24,22 +24,20 @@ export const chatWithAI = async (message: string, context?: string) => {
                 messages: [
                     {
                         role: "system",
-                        content: `Eres un asistente de negocios directo y conciso.
-Responde SOLO lo que el usuario pregunta.
-NO repitas la pregunta.
-NO simules una conversación (no escribas "Usuario:" o "Asistente:").
-Usa el siguiente contexto para responder sobre inventario/ventas:
-${context || "Sin datos."}`
+                        content: `Eres un asistente de negocios útil y directo.
+Tu objetivo es ayudar al usuario con su inventario, ventas y dudas generales de negocio.
+Usa el siguiente contexto si es relevante, si no, usa tu conocimiento general.
+
+CONTEXTO:
+${context || "Sin contexto."}`
                     },
                     {
                         role: "user",
                         content: message
                     }
                 ],
-                max_tokens: 500,
-                temperature: 0.2,
-                top_p: 0.9,
-                stop: ["User:", "Assistant:", "Usuario:", "Asistente:", "\n\n\n"],
+                max_tokens: 1000,
+                temperature: 0.3,
             })
         });
 
