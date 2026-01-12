@@ -1,7 +1,7 @@
 // OpenRouter Configuration
 const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "mistralai/mistral-7b-instruct:free"; // Using verified working free model
+const MODEL = "meta-llama/llama-3-8b-instruct:free";
 
 export const chatWithAI = async (message: string, context?: string) => {
     if (!API_KEY) {
@@ -24,23 +24,22 @@ export const chatWithAI = async (message: string, context?: string) => {
                 messages: [
                     {
                         role: "system",
-                        content: `Eres un asistente útil y profesional para el software "Mi Negocio ERP".
-Tu trabajo es ayudar al usuario con su inventario y ventas basándote en los datos proporcionados.
-Si te preguntan algo general sobre negocios, responde con consejos expertos.
-Si te preguntan sobre datos específicos que NO están en el contexto, dí abiertamente que no tienes esa información.
-
-CONTEXTO ACTUAL:
-${context || "Sin datos específicos."}`
+                        content: `Eres un asistente de negocios directo y conciso.
+Responde SOLO lo que el usuario pregunta.
+NO repitas la pregunta.
+NO simules una conversación (no escribas "Usuario:" o "Asistente:").
+Usa el siguiente contexto para responder sobre inventario/ventas:
+${context || "Sin datos."}`
                     },
                     {
                         role: "user",
                         content: message
                     }
                 ],
-                max_tokens: 1000,
-                temperature: 0.3,
+                max_tokens: 500,
+                temperature: 0.2,
                 top_p: 0.9,
-                stop: ["User:", "Usuario:", "Human:", "assistant:", "###"],
+                stop: ["User:", "Assistant:", "Usuario:", "Asistente:", "\n\n\n"],
             })
         });
 
