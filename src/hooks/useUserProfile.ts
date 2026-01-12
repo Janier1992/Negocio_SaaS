@@ -3,36 +3,58 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export function useUserProfile() {
-  const { data: userProfile, isLoading } = useQuery({
-    queryKey: ["userProfile"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
+export const useUserProfile = () => {
+    return useQuery({
+        queryKey: ["userProfile"],
+        queryFn: async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            
+            if (!user) return null;
 
-      // Fetch profile and business membership in parallel
-      const memberData = memberResponse.data;
+            // 1. Try to get business member record first
+            const { data: memberData, error: memberError } = await supabase
+                .from('business_members')
+                .select('business_id, role')
+                .eq('user_id', user.id)
+                .maybeSingle();
+            
+            if (memberError && memberError.code !== 'PGRST116') {
+                console.error("Error fetching business member:", memberError);
+            }
 
-      console.log("UserProfile Hook - Business Found:", memberData?.business_id);
+            let businessId = memberData?.business_id || null;
 
-      // Return constructed profile object
-      return {
-        id: user.id,
-        email: user.email,
-        first_name: profileResponse.data?.first_name || "",
-        last_name: profileResponse.data?.last_name || "",
-        avatar_url: profileResponse.data?.avatar_url || "",
-        business_id: memberData?.business_id || "",
-        role: memberData?.role || "staff",
-        // Compatibility layer
-        empresa_id: memberData?.business_id || ""
-      };
-    },
-  });
+            // 2. Fallback: Check if user owns a business directly
+            if (!businessId) {
+                const { data: ownedBusiness } = await supabase
+                    .from('businesses')
+                    .select('id')
+                    .eq('user_id', user.id)
+                    .maybeSingle();
 
-  return {
-    userProfile,
-    isLoading,
-    empresaId: userProfile?.business_id
-  };
-}
+                if (ownedBusiness) {
+                    businessId = ownedBusiness.id;
+                }
+            }
+
+            console.log("UserProfile Hook - Business Found:", businessId);
+
+            // 3. Fetch profile data
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+
+            if (profileError) throw profileError;
+
+            return {
+                ...profile,
+                business_id: businessId
+            };
+        },
+        retry: 1,
+        staleTime: 1000 * 60 * 5 // 5 minutes
+    });
+};
+```
