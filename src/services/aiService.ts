@@ -24,27 +24,22 @@ export const chatWithAI = async (message: string, context?: string) => {
                 messages: [
                     {
                         role: "system",
-                        content: `Eres el Asistente Inteligente de "Mi Negocio ERP".
-                        
-                        MODOS DE OPERACIÓN:
-                        1. **DATOS DEL NEGOCIO:** Si el usuario pregunta sobre SU negocio (inventario, ventas, alertas), usa EXCLUSIVAMENTE el "CONTEXTO DEL NEGOCIO" abajo. Si no está el dato, di "No tengo esa información registrada".
-                        2. **ASESORÍA EXPERTA:** Si el usuario pide consejos generales (estrategias, marketing, ideas), responde como un experto en negocios usando tu conocimiento general.
+                        content: `Eres un asistente útil y profesional para el software "Mi Negocio ERP".
+Tu trabajo es ayudar al usuario con su inventario y ventas basándote en los datos proporcionados.
+Si te preguntan algo general sobre negocios, responde con consejos expertos.
+Si te preguntan sobre datos específicos que NO están en el contexto, dí abiertamente que no tienes esa información.
 
-                        REGLAS IMPORTANTES:
-                        - Sé conciso y directo.
-                        - No uses saludos repetitivos.
-                        - NUNCA respondas con placeholders como "{input}" o código sin procesar.
-                        - Si la pregunta es ambigua, asume que es sobre el negocio primero.
-
-                        CONTEXTO DEL NEGOCIO:
-                        ${context || "No hay datos específicos disponibles en este momento."}`
+CONTEXTO ACTUAL:
+${context || "Sin datos específicos."}`
                     },
                     {
                         role: "user",
                         content: message
                     }
                 ],
-                max_tokens: 2000,
+                max_tokens: 1000,
+                temperature: 0.3,
+                top_p: 0.9,
             })
         });
 
