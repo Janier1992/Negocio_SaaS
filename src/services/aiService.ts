@@ -19,6 +19,20 @@ export const chatWithAI = async (message: string, context?: string) => {
         try {
             console.log(`🤖 AI Attempting with model: ${model}`);
 
+            // Merge system prompt into user message to prevent role confusion in free models
+            const combinedPrompt = `
+INSTRUCCIONES DEL SISTEMA:
+Eres un asistente de negocios útil y directo para "Mi Negocio ERP".
+Ayuda con inventario, ventas y dudas generales.
+Usa este contexto si sirve:
+${context || "Sin datos."}
+
+NO alucines. NO simules una conversación. Responde SOLO a la siguiente pregunta del usuario.
+
+USUARIO:
+${message}
+`;
+
             const response = await fetch(OPENROUTER_URL, {
                 method: "POST",
                 headers: {
@@ -31,23 +45,14 @@ export const chatWithAI = async (message: string, context?: string) => {
                     model: model,
                     messages: [
                         {
-                            role: "system",
-                            content: `Eres un asistente de negocios útil y directo.
-Tu objetivo es ayudar al usuario con su inventario, ventas y dudas generales de negocio.
-Usa el siguiente contexto si es relevante, si no, usa tu conocimiento general.
-
-CONTEXTO:
-${context || "Sin contexto."}`
-                        },
-                        {
                             role: "user",
-                            content: message
+                            content: combinedPrompt
                         }
                     ],
                     max_tokens: 1000,
-                    temperature: 0.3,
-                    // Stop tokens help prevent hallucinations in models like Mistral
-                    stop: ["User:", "Assistant:", "Usuario:", "Asistente:", "\n\n\n", "###"]
+                    temperature: 0.2, // Lower temperature for more stability
+                    // Comprehensive stop tokens against common hallucinations
+                    stop: ["User:", "Assistant:", "Usuario:", "Asistente:", "\n\n\n", "###", "[/INST]", "</s>", "[USER]"]
                 })
             });
 
@@ -62,12 +67,11 @@ ${context || "Sin contexto."}`
 
             if (!content) throw new Error("Empty response from OpenRouter.");
 
-            return content; // Success! Return immediately.
+            return content;
 
         } catch (error: any) {
             console.error(`❌ Error with ${model}:`, error.message);
             lastError = error;
-            // Continue to next model...
         }
     }
 
