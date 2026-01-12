@@ -40,6 +40,7 @@ ${context || "Sin datos específicos."}`
                 max_tokens: 1000,
                 temperature: 0.3,
                 top_p: 0.9,
+                stop: ["User:", "Usuario:", "Human:", "assistant:", "###"],
             })
         });
 
