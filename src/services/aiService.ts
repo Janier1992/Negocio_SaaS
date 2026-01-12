@@ -3,11 +3,11 @@ const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY;
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MODELS = [
     "google/gemini-2.0-flash-exp:free",
-    "meta-llama/llama-3.1-8b-instruct:free", // Updated to 3.1
+    "google/gemma-3-27b-it:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
     "mistralai/mistral-7b-instruct:free",
-    "microsoft/phi-3-mini-128k-instruct:free",
-    "qwen/qwen-2-7b-instruct:free",
-    "openchat/openchat-7:free"
+    "meta-llama/llama-3.2-3b-instruct:free",
+    "nousresearch/hermes-3-llama-3.1-405b:free"
 ];
 
 export const chatWithAI = async (message: string, context?: string) => {
