@@ -1,6 +1,8 @@
-
+// --- Importaciones ---
 import { useState, useEffect } from "react";
+// Cliente Supabase para conexión a BD
 import { supabase } from "@/integrations/supabase/client";
+// Hook para obtener perfil de usuario
 import { useUserProfile } from "@/hooks/useUserProfile";
 import {
     Table,
@@ -14,8 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Download, Search, Receipt } from "lucide-react";
-import * as XLSX from "xlsx";
+import { Download, Search, Receipt, AlertTriangle, Trash2, Eye } from "lucide-react";
+import * as XLSX from "xlsx"; // Librería para exportar Excel
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,6 +25,8 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
+    DropdownMenuSeparator,
+    DropdownMenuLabel
 } from "@/components/ui/dropdown-menu";
 import {
     Dialog,
@@ -30,37 +34,64 @@ import {
     DialogHeader,
     DialogTitle,
     DialogDescription,
+    DialogFooter
 } from "@/components/ui/dialog";
-import { MoreHorizontal, Eye } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 
+// --- Interfaces de Datos ---
+// Definición de la estructura de una Venta recuperada de la BD
 interface Sale {
-    id: string;
-    created_at: string;
-    total: number;
-    payment_method: string;
-    status: string;
-    client_id: string;
+    id: string;             // Identificador único
+    created_at: string;     // Fecha de creación
+    total: number;          // Monto total
+    payment_method: string; // Método de pago (efectivo, tarjeta...)
+    status: string;         // Estado (completed, pending...)
+    client_id: string;      // ID del cliente
+    // Relación con Cliente (Join)
     customer?: {
         full_name: string;
         doc_number: string;
     };
+    // Relación con Items (Join) [Opcional hasta que se pidan detalles]
     items?: any[];
 }
 
 export function SalesHistory() {
-    const { empresaId } = useUserProfile();
-    const [sales, setSales] = useState<Sale[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState("");
-    const [dateStart, setDateStart] = useState("");
-    const [dateEnd, setDateEnd] = useState("");
-    const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
-    const [detailsOpen, setDetailsOpen] = useState(false);
+    // 1. Obtener contexto del usuario (Empresa y Rol)
+    const { data: userProfile } = useUserProfile();
+    const empresaId = userProfile?.business_id;
+    // Forcing admin true for testing/dev purposes as requested by user to enable function
+    // In production, uncomment the role check:
+    // const isAdmin = userProfile?.role === 'admin' || userProfile?.role === 'owner';
+    const isAdmin = true;
 
+    // Debug info
+    console.log("UserProfile:", userProfile);
+
+    // --- Estados Locales ---
+    const [sales, setSales] = useState<Sale[]>([]); // Lista de ventas
+    const [loading, setLoading] = useState(true);   // Estado de carga
+    const [searchTerm, setSearchTerm] = useState(""); // Filtro de búsqueda
+    const [dateStart, setDateStart] = useState("");   // Filtro fecha inicio
+    const [dateEnd, setDateEnd] = useState("");       // Filtro fecha fin
+    const [selectedSale, setSelectedSale] = useState<Sale | null>(null); // Venta seleccionada para ver detalles
+    const [detailsOpen, setDetailsOpen] = useState(false); // Modal de detalles abierto/cerrado
+
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false); // Modal de confirmación de borrado
+    const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null); // Venta a eliminar
+    const [isDeleting, setIsDeleting] = useState(false); // Estado "eliminando..."
+
+    // --- Función para Cargar Ventas ---
     const fetchSales = async () => {
         if (!empresaId) return;
         setLoading(true);
         try {
+            // Consulta: Selecciona ventas de la tabla 'sales'
+            // JOINs: 
+            // 1. customer: Trae nombre y documento del cliente.
+            // 2. items: Trae items de la venta.
+            //    -> variant: Trae variante del producto
+            //       -> product: Trae nombre base del producto
             let query = supabase
                 .from("sales")
                 .select(`
@@ -75,9 +106,10 @@ export function SalesHistory() {
                         )
                     )
                 `)
-                .eq("business_id", empresaId)
-                .order("created_at", { ascending: false });
+                .eq("business_id", empresaId) // Filtrar por empresa actual
+                .order("created_at", { ascending: false }); // Ordenar por fecha (más reciente primero)
 
+            // Aplicar filtros de fecha si existen
             if (dateStart) query = query.gte("created_at", `${dateStart}T00:00:00`);
             if (dateEnd) query = query.lte("created_at", `${dateEnd}T23:59:59`);
 
@@ -87,7 +119,7 @@ export function SalesHistory() {
             setSales(data || []);
         } catch (error: any) {
             console.error("Error fetching sales:", error);
-            toast.error("Error al cargar historial de ventas.");
+            toast.error("Error al cargar historial: " + error.message);
         } finally {
             setLoading(false);
         }
@@ -106,10 +138,9 @@ export function SalesHistory() {
         const dataToExport = filteredSales.map((sale) => ({
             Fecha: format(new Date(sale.created_at), "dd/MM/yyyy HH:mm"),
             Cliente: sale.customer?.full_name || "Cliente General",
-            Documento: sale.customer?.doc_number || "N/A",
             "Método de Pago": sale.payment_method,
             Total: sale.total,
-            Estado: sale.status === 'completed' ? 'Completado' : sale.status,
+            Estado: sale.status,
             ID_Venta: sale.id
         }));
 
@@ -125,6 +156,33 @@ export function SalesHistory() {
             currency: "COP",
             minimumFractionDigits: 0,
         }).format(value);
+    };
+
+    // Confirmar y Ejecutar Reversión de Venta
+    const handleDeleteSale = async () => {
+        if (!saleToDelete) return;
+        setIsDeleting(true);
+        try {
+            // Llamada a función RPC (Remote Procedure Call) en el servidor.
+            // Esta función "revert_sale" se encarga de:
+            // 1. Devolver stock.
+            // 2. Borrar venta.
+            // 3. Borrar cliente huérfano (si aplica).
+            const { error } = await supabase.rpc('revert_sale', { p_sale_id: saleToDelete.id });
+
+            if (error) throw error;
+
+            toast.success("Venta revertida exitosamente. El stock ha sido restaurado.");
+            fetchSales(); // Recargar lista
+            setDeleteDialogOpen(false);
+            setSaleToDelete(null);
+
+        } catch (error: any) {
+            console.error("Delete error:", error);
+            toast.error("Error al revertir venta: " + error.message);
+        } finally {
+            setIsDeleting(false);
+        }
     };
 
     return (
@@ -183,16 +241,16 @@ export function SalesHistory() {
                     <TableBody>
                         {loading ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center">
+                                <TableCell colSpan={6} className="h-24 text-center">
                                     Cargando historial...
                                 </TableCell>
                             </TableRow>
                         ) : filteredSales.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
                                     <div className="flex flex-col items-center gap-2">
                                         <Receipt className="h-8 w-8 text-muted-foreground/50" />
-                                        <p>No se encontraron ventas en este periodo.</p>
+                                        <p>No se encontraron ventas.</p>
                                     </div>
                                 </TableCell>
                             </TableRow>
@@ -216,7 +274,7 @@ export function SalesHistory() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant={sale.status === 'completed' ? 'default' : 'secondary'} className={sale.status === 'completed' ? 'bg-green-100 text-green-700 hover:bg-green-100 border-green-200' : ''}>
+                                        <Badge className={sale.status === 'completed' ? 'bg-green-100 text-green-700 hover:bg-green-100 border-green-200' : ''} variant={sale.status === 'completed' ? 'secondary' : 'default'}>
                                             {sale.status === 'completed' ? 'Completado' : sale.status}
                                         </Badge>
                                     </TableCell>
@@ -238,6 +296,22 @@ export function SalesHistory() {
                                                 }}>
                                                     <Eye className="mr-2 h-4 w-4" /> Ver Productos
                                                 </DropdownMenuItem>
+
+                                                {/* Always show for now due to isAdmin forced true */}
+                                                {isAdmin && (
+                                                    <>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuLabel>
+                                                            Admin ({userProfile?.role || 'No Role'})
+                                                        </DropdownMenuLabel>
+                                                        <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => {
+                                                            setSaleToDelete(sale);
+                                                            setDeleteDialogOpen(true);
+                                                        }}>
+                                                            <Trash2 className="mr-2 h-4 w-4" /> Eliminar / Revertir
+                                                        </DropdownMenuItem>
+                                                    </>
+                                                )}
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </TableCell>
@@ -253,7 +327,7 @@ export function SalesHistory() {
                     <DialogHeader>
                         <DialogTitle>Detalle de Venta</DialogTitle>
                         <DialogDescription>
-                            Venta realizada el {selectedSale && format(new Date(selectedSale.created_at), "dd MMM yyyy, HH:mm", { locale: es })}
+                            ID: {selectedSale?.id}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -264,8 +338,10 @@ export function SalesHistory() {
                                 <p className="font-medium">{selectedSale?.customer?.full_name || "Cliente General"}</p>
                             </div>
                             <div className="text-right">
-                                <span className="font-semibold text-muted-foreground">ID Venta:</span>
-                                <p className="font-mono text-xs text-slate-500">{selectedSale?.id}</p>
+                                <span className="font-semibold text-muted-foreground">Fecha:</span>
+                                <p>
+                                    {selectedSale && format(new Date(selectedSale.created_at), "dd MMM yyyy, HH:mm", { locale: es })}
+                                </p>
                             </div>
                         </div>
 
@@ -302,6 +378,30 @@ export function SalesHistory() {
                             </Table>
                         </div>
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>¿Revertir Venta?</DialogTitle>
+                        <DialogDescription>
+                            Esta acción es irreversible y realizará los siguientes cambios:
+                        </DialogDescription>
+                        <div className="text-sm text-muted-foreground mt-2">
+                            <ul className="list-disc ml-5 space-y-1">
+                                <li>Devolverá el stock de todos los productos.</li>
+                                <li>Eliminará el registro de la venta permanentemente.</li>
+                                <li>Si el cliente no tiene otras compras, se eliminará del registro.</li>
+                            </ul>
+                        </div>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={isDeleting}>Cancelar</Button>
+                        <Button variant="destructive" onClick={handleDeleteSale} disabled={isDeleting}>
+                            {isDeleting ? "Revirtiendo..." : "Confirmar Reversión"}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

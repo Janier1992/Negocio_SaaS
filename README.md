@@ -1,106 +1,117 @@
-# 🚀 Mi Negocio ERP
+# Negocio SaaS - Sistema de Gestión para PyMES
 
-[![CI](https://github.com/Janier1992/MiNegocio-ERP/actions/workflows/ci.yml/badge.svg)](https://github.com/Janier1992/MiNegocio-ERP/actions/workflows/ci.yml)
-[![Supabase](https://img.shields.io/badge/Backend-Supabase-green)](https://supabase.com/)
-[![React](https://img.shields.io/badge/Frontend-React_18-blue)](https://react.dev/)
-[![PWA](https://img.shields.io/badge/PWA-Ready-purple)](https://web.dev/progressive-web-apps/)
+## 📋 Descripción del Proyecto
+**Negocio SaaS** es una plataforma tecnológica diseñada específicamente para **Pequeñas y Medianas Empresas (PyMES)** y tiendas de barrio. Su objetivo es democratizar el acceso a herramientas de gestión empresarial de alto nivel, permitiendo a los comerciantes administrar sus **Ventas, Inventario, Clientes, Gastos y Proveedores** de manera eficiente, segura y desde cualquier dispositivo.
 
-**Sistema de Gestión Empresarial (ERP) moderno, ligero y potente, diseñado para PyMEs y ferreterías.**  
-Combina la flexibilidad de la web con la potencia de una aplicación nativa gracias a su arquitectura **PWA (Progressive Web App)**.
+El valor central es la **simplicidad y potencia**: una interfaz amigable que no requiere conocimientos técnicos, respaldada por una infraestructura robusta en la nube.
 
 ---
 
-## 🎯 ¿A quién está dirigido?
+## 🛠️ Stack Tecnológico (Tecnologías Utilizadas)
 
-Este ERP está optimizado para **Pequeñas y Medianas Empresas (PyMEs)** que necesitan digitalizar sus operaciones sin incurrir en costos elevados de infraestructura. Es ideal para:
+El proyecto está construido con herramientas modernas que garantizan velocidad, seguridad y escalabilidad:
 
-*   🔨 **Ferreterías y Depósitos**: Gestión avanzada de inventario, stock crítico y múltiples proveedores.
-*   🛍️ **Tiendas de Retail**: Punto de venta (POS) rápido, arqueo de caja y control de ventas.
-*   📦 **Distribuidoras**: Control de compras, cuentas por pagar y reportes financieros.
+*   **Frontend (Interfaz de Usuario):**
+    *   **React + Vite:** Biblioteca para construir interfaces rápidas y reactivas.
+    *   **TypeScript:** Lenguaje que añade seguridad y tipado al código, reduciendo errores.
+    *   **Tailwind CSS:** Framework de diseño para estilos modernos y responsivos (móvil/escritorio).
+    *   **Shadcn/UI:** Librería de componentes visuales (botones, tablas, diálogos) profesionales y accesibles.
+    *   **Lucide React:** Iconografía moderna y limpia.
 
----
+*   **Backend & Base de Datos (Nube):**
+    *   **Supabase:** Plataforma "Backend-as-a-Service" que provee:
+        *   **Base de Datos PostgreSQL:** Potente motor de base de datos relacional.
+        *   **Autenticación:** Gestión segura de usuarios y sesiones.
+        *   **Almacenamiento (Storage):** Para guardar imágenes de productos y perfiles.
+        *   **Edge Functions / RPC:** Funciones de lógica de negocio (ej. revertir ventas y stock) ejecutadas en el servidor.
 
-## 🔥 Características Estrella (Marketing)
-
-*   **📱 Mobile-First & PWA**: Instálala en tu celular, tablet o PC como una app nativa. Funciona offline y se actualiza automáticamente.
-*   **⚡ Velocidad Extrema**: Construida con **Vite** y **React**, la navegación es instantánea.
-*   **🔒 Seguridad de Grado Bancario**: Implementa **Row Level Security (RLS)** de PostgreSQL. Cada empresa ve estrictamente sus propios datos, garantizando privacidad total en un entorno multi-tenant.
-*   **🎨 Experiencia de Usuario (UX) Premium**: Interfaz limpia, modo oscuro/claro, notificaciones en tiempo real y componentes visuales intuitivos (`shadcn/ui`).
-*   **📊 Inteligencia de Negocios**: Dashboard con KPIs en tiempo real, alertas de stock bajo y reportes financieros detallados.
-
----
-
-## 🛠️ Stack Tecnológico
-
-La aplicación utiliza un stack moderno y mantenible:
-
-*   **Frontend**: React 18, TypeScript, Tailwind CSS, Shadcn UI.
-*   **Build Tool**: Vite (con plugin PWA).
-*   **Backend & Base de Datos**: Supabase (PostgreSQL, Auth, Storage, Edge Functions).
-*   **Estado**: TanStack Query (React Query) para gestión eficiente de datos servidor-cliente.
-*   **Despliegue**: Compatible con Vercel, Netlify o cualquier hosting estático.
+*   **Herramientas Adicionales:**
+    *   **React Query (TanStack Query):** Gestión eficiente de datos y caché (carga rápida de información).
+    *   **React Router Dom:** Navegación fluida entre páginas sin recargar el navegador.
+    *   **XLSX:** Funcionalidad para exportar reportes a Excel.
 
 ---
 
-## 📂 Estructura del Código
+## 📂 Estructura del Proyecto (¿Qué hay en cada carpeta?)
 
-El proyecto sigue una arquitectura modular y escalable:
+Esta guía ayuda a entender dónde encontrar cada parte del código:
 
-*   `src/components`: Componentes UI reutilizables (atomicos y moleculares).
-*   `src/pages`: Vistas principales (Dashboard, Ventas, Inventario, etc.), cargadas mediante Lazy Loading.
-*   `src/hooks`: Lógica de negocio encapsulada (e.g., `useUserProfile`, `useCart`).
-*   `src/services`: Capa de comunicación con Supabase y APIs externas.
-*   `src/integrations/supabase`: Configuración del cliente y tipos generados automáticamentes.
-*   `supabase/migrations`: Scripts SQL que definen el esquema de la base de datos, funciones RPC y políticas RLS.
+*   **`src/`**: Carpeta principal del código fuente.
+    *   **`components/`**: Los "bloques de construcción" de la aplicación.
+        *   **`ui/`**: Elementos base (Botones, Inputs, Tarjetas).
+        *   **`layout/`**: Estructura de la página (Barra lateral, Encabezado, Navegación).
+        *   **`ventas/`**, **`inventario/`**, **`customers/`**: Módulos específicos con la lógica de cada sección.
+    *   **`hooks/`**: "Ganchos" o funciones reutilizables que conectan con la base de datos (ej. `useProducts` para traer productos, `useUserProfile` para saber quién está logueado).
+    *   **`pages/`**: Las pantallas completas que ve el usuario (ej. `Dashboard.tsx`, `Ventas.tsx`, `Inventario.tsx`).
+    *   **`services/`**: Funciones auxiliares para tareas específicas (ej. enviar correos, validar datos).
+    *   **`context/`**: Manejo de estado global (ej. el Carrito de Compras que persiste mientras navegas).
+    *   **`App.tsx`**: El punto de entrada principal que configura las rutas.
+    *   **`main.tsx`**: El archivo que "monta" la aplicación en el navegador.
 
 ---
 
-## ⚙️ Configuración e Instalación
+## 💰 Modelo de Negocio (SaaS)
+
+El proyecto opera bajo un modelo de **Software as a Service (SaaS)** por suscripción.
+
+### Estrategia de Precios (Pricing)
+El objetivo es ofrecer planes accesibles que escalen con el crecimiento del negocio del cliente.
+
+*   **Moneda:** Pesos Colombianos (COP).
+*   **Frecuencia:** Pagos Mensuales o Anuales (con descuento).
+
+#### Propuesta de Planes (Ejemplo):
+1.  **Plan Emprendedor (Básico):**
+    *   Ideal para: Pequeñas tiendas o vendedores individuales.
+    *   Funciones: Venta POS, Inventario (hasta 100 productos), Clientes básicos.
+    *   Precio sugerido: **$40,000 - $60,000 COP / mes**.
+
+2.  **Plan Pyme (Pro):**
+    *   Ideal para: Supermercados medianos, ferreterías, papelerías.
+    *   Funciones: Inventario ilimitado, Múltiples usuarios, Reportes de Excel, Gestión de Proveedores y Gastos.
+    *   Precio sugerido: **$80,000 - $120,000 COP / mes**.
+
+3.  **Plan Empresarial:**
+    *   Ideal para: Cadenas o negocios con múltiples sucursales.
+    *   Funciones: Multi-sucursal, API personalizada, Soporte prioritario.
+    *   Precio: **A convenir / Personalizado**.
+
+---
+
+## 🚀 Estrategia de Marketing y Ventas
+
+Para captar el mercado de PyMES, se sugiere una estrategia híbrida (Digital y Terreno):
+
+1.  **Marketing de Contenidos y SEO:**
+    *   Crear tutoriales sobre "Cómo administrar tu inventario" o "Cómo evitar robos hormiga" que lleven a la app.
+    *   Posicionamiento local en Google Maps y búsquedas relacionadas con "software contable pymes colombia".
+
+2.  **Venta Consultiva (Terreno):**
+    *   Visita directa a zonas comerciales.
+    *   **Demo en vivo:** Mostrar al dueño cómo registrar una venta en 10 segundos desde su celular.
+    *   **Prueba Gratuita:** Ofrecer 14 días gratis sin tarjeta de crédito para generar confianza.
+
+3.  **Alianzas Estratégicas:**
+    *   Asociarse con contadores que recomienden el software a sus clientes para facilitarles la contabilidad.
+
+4.  **Retención:**
+    *   Soporte técnico vía WhatsApp (vital en LATAM).
+    *   Actualizaciones constantes basadas en feedback real.
+
+---
+
+## ⚙️ Instalación y Despliegue
 
 ### Requisitos Previos
-*   Node.js (v18 o superior)
-*   Cuenta en [Supabase](https://supabase.com/)
+*   Node.js instalado.
+*   Cuenta en Supabase configurada.
 
-### 1. Clonar y Dependencias
-```bash
-git clone https://github.com/Janier1992/MiNegocio-ERP.git
-cd MiNegocio-ERP
-npm install
-```
-
-### 2. Configurar Variables de Entorno
-Crea un archivo `.env` en la raíz basado en el siguiente ejemplo:
-```env
-VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
-VITE_SUPABASE_ANON_KEY=tu-clave-anon
-VITE_PUBLIC_SITE_URL=http://localhost:8080
-```
-
-### 3. Base de Datos
-Ejecuta las migraciones incluidas en `supabase/migrations` en tu proyecto de Supabase para crear las tablas y políticas de seguridad.
-> **Importante**: Asegúrate de ejecutar el script para el bucket de `avatars` si deseas habilitar la subida de fotos de perfil.
-
-### 4. Correr en Desarrollo
-```bash
-npm run dev
-```
-La aplicación estará disponible en `http://localhost:8080`.
+### Pasos
+1.  **Clonar repositorio:** `git clone ...`
+2.  **Instalar dependencias:** `npm install`
+3.  **Configurar entorno:** Crear archivo `.env` con las llaves de Supabase (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`).
+4.  **Correr localmente:** `npm run dev`
 
 ---
 
-## 🚀 Estrategias de Crecimiento (Roadmap)
-
-1.  **Módulo de Facturación Electrónica**: Integración directa con proveedores de facturación.
-2.  **App Móvil Nativa**: Uso de Capacitor para publicar en Play Store / App Store.
-3.  **Marketplace B2B**: Conectar proveedores directamente con el inventario del negocio.
-4.  **IA Predictiva**: Sugerencias de reabastecimiento basadas en histórico de ventas.
-
----
-
-## 🤝 Contribución
-
-¡Las contribuciones son bienvenidas! Por favor lee `CONTRIBUTING.md` (si existe) o abre un Issue para discutir cambios mayores.
-
----
-
-Desarrollado con ❤️ para impulsar el comercio local.
+*Documentación generada automáticamente por tu Asistente de IA de Google DeepMind.*

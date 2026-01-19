@@ -60,7 +60,8 @@ const cleanPrice = (val: any): number => {
 
 export const useExcelUpload = () => {
   const [loading, setLoading] = useState(false);
-  const { empresaId } = useUserProfile();
+  const { data: userProfile } = useUserProfile();
+  const empresaId = userProfile?.business_id;
 
   const uploadProveedores = async (file: File) => {
     if (!empresaId) throw new Error("No se encontró empresa asociada");

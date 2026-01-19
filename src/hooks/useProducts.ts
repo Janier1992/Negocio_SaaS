@@ -27,7 +27,8 @@ export interface Product {
 }
 
 export function useProducts() {
-    const { empresaId } = useUserProfile();
+    const { data: userProfile } = useUserProfile();
+    const empresaId = userProfile?.business_id;
     const queryClient = useQueryClient();
 
     const { data: productosData = [], isLoading, error, refetch } = useQuery({
@@ -82,7 +83,8 @@ export function useProducts() {
 
 export function useDeleteProduct() {
     const queryClient = useQueryClient();
-    const { empresaId } = useUserProfile();
+    const { data: userProfile } = useUserProfile();
+    const empresaId = userProfile?.business_id;
 
     return useMutation({
         mutationFn: async (productId: string) => {

@@ -57,15 +57,12 @@ export function useCustomerStats() {
 
                 const { data: salesData, error: salesFetchError } = await supabase
                     .from("sales")
-                    .select("customer_id") // Assuming this column exists based on relation
+                    .select("client_id") // Correct column name based on Ventas.tsx
                     .limit(1000);
 
                 if (!salesFetchError && salesData) {
                     // Filter nulls (if any) and Count unique
-                    // Note: customer_id might be implicit via relation? No, FK usually means column.
-                    // But schema file didn't show it. Code might be using a join table? 
-                    // No, "customer:customers(name)" implies FK on sales.customer_id -> customers.id
-                    const ids = new Set(salesData.map((s: any) => s.customer_id).filter(Boolean));
+                    const ids = new Set(salesData.map((s: any) => s.client_id).filter(Boolean));
                     activeCustomers = ids.size;
                 }
             } catch (e) {

@@ -124,7 +124,7 @@ export function ProductCatalog({ onAddToCart }: ProductCatalogProps) {
                                     <span className="font-bold text-lg text-primary">
                                         ${product.precio.toLocaleString()}
                                     </span>
-                                    <Button size="icon" variant="secondary" className="h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Button size="icon" variant="secondary" className="h-6 w-6 rounded-full shadow-sm">
                                         +
                                     </Button>
                                 </div>

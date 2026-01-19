@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserProfile } from "./useUserProfile";
 
 export function useCatalogos() {
-    const { userProfile } = useUserProfile();
+    const { data: userProfile } = useUserProfile();
     const businessId = userProfile?.business_id;
 
     const { data: categorias = [] } = useQuery({

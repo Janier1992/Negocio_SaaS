@@ -93,7 +93,7 @@ export function CartPanel({ onCheckout, isProcessing }: CartPanelProps) {
 
             {/* Cart Items - Table View */}
             <div className="flex-1 overflow-y-auto bg-muted/10 p-2 min-h-0">
-                <div className="bg-background rounded-md border shadow-sm overflow-hidden h-full">
+                <div className="bg-background rounded-md border shadow-sm h-auto min-h-full">
                     <Table>
                         <TableHeader>
                             <TableRow className="hover:bg-transparent">

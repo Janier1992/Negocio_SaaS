@@ -18,7 +18,8 @@ export function ExpenseDialog({ onExpenseAdded, trigger }: ExpenseDialogProps) {
     const [open, setOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const queryClient = useQueryClient();
-    const { userProfile, empresaId } = useUserProfile();
+    const { data: userProfile } = useUserProfile();
+    const empresaId = userProfile?.business_id;
 
     const [formData, setFormData] = useState({
         description: "",

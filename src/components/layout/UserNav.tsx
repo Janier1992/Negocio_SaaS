@@ -19,7 +19,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 export function UserNav() {
-    const { userProfile } = useUserProfile();
+    const { data: userProfile } = useUserProfile();
     const navigate = useNavigate();
     const [theme, setTheme] = useState<"light" | "dark">("light");
 

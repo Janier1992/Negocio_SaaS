@@ -16,7 +16,8 @@ import { Button } from "@/components/ui/button";
 function VentasContent() {
     const { items, addToCart, total, clearCart } = useCart();
     const [isProcessing, setIsProcessing] = useState(false);
-    const { userProfile, empresaId } = useUserProfile();
+    const { data: userProfile } = useUserProfile();
+    const empresaId = userProfile?.business_id;
     const queryClient = useQueryClient();
 
     const handleCheckout = async (paymentMethod: string, customerData: any) => {
@@ -140,7 +141,7 @@ function VentasContent() {
                 </div>
 
                 <TabsContent value="pos" className="space-y-0 md:space-y-4 h-full">
-                    <div className="h-[calc(100vh-180px)] md:h-[calc(85dvh-8rem)] -mx-2 md:mx-0 p-0 gap-0 flex flex-col relative">
+                    <div className="h-[calc(100dvh-180px)] md:h-[calc(85dvh-8rem)] -mx-2 md:mx-0 p-0 gap-0 flex flex-col relative">
                         <div className="flex flex-col lg:flex-row h-full gap-4 max-h-full overflow-hidden">
                             {/* Left: Catalog */}
                             <div className="flex-1 min-w-0 bg-card rounded-lg border shadow-sm p-4 overflow-hidden flex flex-col">
@@ -171,7 +172,7 @@ function VentasContent() {
                                         </div>
                                     </Button>
                                 </SheetTrigger>
-                                <SheetContent side="bottom" className="h-[85vh] p-0 rounded-t-[10px] flex flex-col">
+                                <SheetContent side="bottom" className="h-[95dvh] p-0 rounded-t-[10px] flex flex-col">
                                     <div className="h-full pt-4">
                                         <CartPanel
                                             onCheckout={handleCheckout}

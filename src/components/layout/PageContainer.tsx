@@ -20,7 +20,7 @@ export function PageContainer({ children, title, description, actions }: PageCon
                         </p>
                     )}
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center gap-2">
                     {actions}
                 </div>
             </div>

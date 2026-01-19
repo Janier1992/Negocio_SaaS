@@ -45,7 +45,8 @@ interface ChatMessage {
 }
 
 export default function Alertas() {
-    const { empresaId } = useUserProfile();
+    const { data: userProfile } = useUserProfile();
+    const empresaId = userProfile?.business_id;
     const [filter, setFilter] = useState<"all" | "unread">("all");
     const [isOpen, setIsOpen] = useState(false);
     const [chatInput, setChatInput] = useState("");

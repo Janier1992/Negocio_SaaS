@@ -20,7 +20,8 @@ type ConfigTab = "profile" | "company" | "preferences" | "security";
 
 export default function Configuracion() {
     const [activeTab, setActiveTab] = useState<ConfigTab>("company");
-    const { empresaId, userProfile } = useUserProfile();
+    const { data: userProfile } = useUserProfile();
+    const empresaId = userProfile?.business_id;
     const queryClient = useQueryClient();
 
     // 1. Fetch Real Business Data
@@ -72,6 +73,10 @@ export default function Configuracion() {
     });
 
     const handleSaveCompany = () => {
+        if (!empresaId) {
+            toast.error("Error: No se ha identificado la empresa. Recarga la página.");
+            return;
+        }
         updateCompanyMutation.mutate(companyForm);
     };
 

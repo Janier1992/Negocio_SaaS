@@ -27,6 +27,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useDeleteProduct } from "@/hooks/useProducts";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 
 // Helper to get image
@@ -43,6 +44,8 @@ export default function Productos() {
     const [searchTerm, setSearchTerm] = useState("");
     const [productToEdit, setProductToEdit] = useState<Product | undefined>(undefined);
     const deleteProduct = useDeleteProduct();
+    const { data: userProfile } = useUserProfile();
+    const empresaId = userProfile?.business_id;
 
     // Enhanced logic for display
     const getStockStatus = (stock: number) => {
@@ -76,7 +79,7 @@ export default function Productos() {
             title="Productos"
             description="Gestiona tu catálogo, precios y stock en tiempo real."
             actions={
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                     <button
                         onClick={handleExport}
                         className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"

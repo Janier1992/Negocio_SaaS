@@ -62,7 +62,7 @@ export default function Inventario() {
             title="Inventario"
             description="Gestiona tus productos y existencias"
             actions={
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                     <ExcelUploadDialog
                         onUploadComplete={refetch}
                         categorias={categorias}

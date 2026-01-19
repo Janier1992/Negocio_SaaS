@@ -44,7 +44,8 @@ export default function Suppliers() {
   const queryClient = useQueryClient();
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const { empresaId } = useUserProfile();
+  const { data: userProfile } = useUserProfile();
+  const empresaId = userProfile?.business_id;
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers_list", empresaId],
@@ -93,7 +94,7 @@ export default function Suppliers() {
   };
 
   return (
-    <div className="flex flex-col gap-8 p-8 min-h-screen bg-background-light dark:bg-background-dark font-sans animate-in fade-in duration-500">
+    <div className="flex flex-col gap-8 p-4 md:p-8 min-h-screen bg-background-light dark:bg-background-dark font-sans animate-in fade-in duration-500">
 
       {/* --- HEADER --- */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -101,7 +102,7 @@ export default function Suppliers() {
           <h1 className="text-3xl font-black text-[#0d141b] dark:text-white tracking-tight">Proveedores</h1>
           <p className="text-[#4c739a] dark:text-[#8babc8] mt-1">Gestiona tu cadena de suministro y contactos estratégicos.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <Button variant="outline" onClick={handleExport} className="gap-2 border-[#e7edf3] dark:border-[#2a3b4d] hover:bg-gray-50 dark:hover:bg-[#1a2632]">
             <Download className="size-4" /> Exportar
           </Button>

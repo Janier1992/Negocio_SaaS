@@ -13,7 +13,8 @@ import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 export function NotificationsBell() {
-    const { empresaId } = useUserProfile();
+    const { data: userProfile } = useUserProfile();
+    const empresaId = userProfile?.business_id;
     const navigate = useNavigate();
 
     const { data: alerts = [], isLoading } = useQuery({

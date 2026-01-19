@@ -26,7 +26,8 @@ export const SupplierDialog = ({
   editingSupplier,
   onClose,
 }: SupplierDialogProps) => {
-  const { empresaId, isLoading: loadingProfile } = useUserProfile();
+  const { data: userProfile, isLoading: loadingProfile } = useUserProfile();
+  const empresaId = userProfile?.business_id;
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 

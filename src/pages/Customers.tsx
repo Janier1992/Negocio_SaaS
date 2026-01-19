@@ -45,7 +45,8 @@ export default function Customers() {
     const queryClient = useQueryClient();
     const [editingCustomer, setEditingCustomer] = useState<any>(null);
     const [searchTerm, setSearchTerm] = useState("");
-    const { empresaId } = useUserProfile();
+    const { data: userProfile } = useUserProfile();
+    const empresaId = userProfile?.business_id;
 
     const { data: customers = [], isLoading } = useQuery({
         queryKey: ["customers_list", empresaId],
@@ -111,7 +112,7 @@ export default function Customers() {
             title="Clientes"
             description="Base de datos de clientes y relaciones comerciales."
             actions={
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                     <Button variant="outline" onClick={handleExport} className="gap-2 border-[#e7edf3] dark:border-[#2a3b4d] hover:bg-gray-50 dark:hover:bg-[#1a2632]">
                         <Download className="size-4" /> Exportar CSV
                     </Button>

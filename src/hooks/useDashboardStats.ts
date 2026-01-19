@@ -17,7 +17,8 @@ export interface DashboardStats {
 }
 
 export function useDashboardStats() {
-    const { empresaId, isLoading: isProfileLoading } = useUserProfile();
+    const { data: userProfile, isLoading: isProfileLoading } = useUserProfile();
+    const empresaId = userProfile?.business_id;
 
     return useQuery({
         queryKey: ["dashboard", "stats", empresaId],

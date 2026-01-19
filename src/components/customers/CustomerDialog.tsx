@@ -28,7 +28,8 @@ export const CustomerDialog = ({
     onClose,
     trigger,
 }: CustomerDialogProps) => {
-    const { empresaId } = useUserProfile();
+    const { data: userProfile } = useUserProfile();
+    const empresaId = userProfile?.business_id;
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({

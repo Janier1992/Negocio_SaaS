@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export default function Profile() {
-    const { userProfile, isLoading, refetch } = useUserProfile();
+    const { data: userProfile, isLoading, refetch } = useUserProfile();
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
     const [isSaving, setIsSaving] = useState(false);

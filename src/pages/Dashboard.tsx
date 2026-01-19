@@ -32,7 +32,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 export default function Dashboard() {
     const { data: stats, isLoading, error } = useDashboardStats();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { userProfile } = useUserProfile() as any;
+    const { data: userProfile } = useUserProfile();
     const navigate = useNavigate();
 
     const formatCurrency = (value: number) => {
@@ -75,7 +75,7 @@ export default function Dashboard() {
             </div>
 
             {/* KPI CARDS */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Productos en Stock */}
                 <div className="bg-white dark:bg-card p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between h-32">
                     <div className="flex justify-between items-start">

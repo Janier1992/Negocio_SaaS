@@ -43,7 +43,7 @@ export function ProductDialog({
   onClose,
   trigger,
 }: ProductDialogProps) {
-  const { userProfile } = useUserProfile();
+  const { data: userProfile } = useUserProfile();
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
